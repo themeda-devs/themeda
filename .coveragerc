@@ -1,0 +1,5 @@
+[run]
+source = ecofuture
+
+[report]
+precision = 2
