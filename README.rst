@@ -34,7 +34,7 @@ Install using pip:
 
 .. code-block:: bash
 
-    pip install git+https://github.com/unimelbmdap/ecofuture.git
+    pip install git+https://github.com/rrunting/NorthAustMDAP.git
 
 
 Usage
