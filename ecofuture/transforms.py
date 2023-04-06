@@ -19,7 +19,7 @@ class Chip():
         return self.cache/f"{product}-{self.x}-{self.y}-{self.width}-{self.height}-{date_str}.pt"
 
     def get_data(self, product:str, time:datetime) -> Path:
-        return torch.load(self.get_file(time))
+        return torch.load(self.get_file(product, time))
 
 
 def ChipBlock(TransformBlock):

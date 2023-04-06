@@ -41,8 +41,15 @@ class ResnetSpatialEncoder(nn.Module):
         assert isinstance(self.resnet, visionmodels.resnet.ResNet)
         self.average_channels = average_channels
 
-        # Modify input channels
+        # Modify input channels weights
+        new_weights = self.resnet.conv1.weight.data.sum(dim=1, keepdim=True)/in_channels
+        new_weights = new_weights.repeat( 1, in_channels, 1, 1 )
+        params = {attr:getattr(self.resnet.conv1, attr) for attr in 'out_channels kernel_size stride padding dilation groups padding_mode'.split()}
+        params['bias'] = bool(self.resnet.conv1.bias)
+        params['in_channels'] = in_channels
 
+        self.resnet.conv1 = nn.Conv2d( **params )
+        self.resnet.conv1.data = new_weights
 
     def forward(self, x):
         initial = x
@@ -57,7 +64,7 @@ class ResnetSpatialEncoder(nn.Module):
         l4 = x = self.resnet.layer4(x)
 
         if self.average_channels:
-            x = self.resnet.avgpool(x)
+            x = self.resnet.avgpool(x).squeeze()
 
         return x, initial, l1, l2, l3, l4
 

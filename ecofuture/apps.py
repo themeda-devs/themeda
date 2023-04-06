@@ -3,7 +3,10 @@ import torch
 from pathlib import Path
 from torch import nn
 from fastai.data.core import DataLoaders
-import torchapp as fa
+import torchapp as ta
+from fastcore.foundation import mask2idxs
+from fastai.data.block import DataBlock
+from fastai.data.transforms import IndexSplitter
 from rich.console import Console
 console = Console()
 from enum import Enum
@@ -12,6 +15,7 @@ from dateutil import rrule
 import geojson
 
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
+from .transforms import Chip, ChipBlock
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -46,27 +50,27 @@ class DictionarySplitter:
         return IndexSplitter(validation_indexes)(objects)
 
 
-class EcoFuture(fa.TorchApp):
+class EcoFuture(ta.TorchApp):
     """
     A model to forecast changes to ecosystems in Australia.
     """
     def dataloaders(
         self,
-        inputs:List[str] = fa.Param(help="The input products to use from Digital Earth Australia."),
-        outputs:List[str] = fa.Param(
+        inputs:List[str] = ta.Param(help="The input products to use from Digital Earth Australia."),
+        outputs:List[str] = ta.Param(
             None, 
             help="The output products to use from Digital Earth Australia. " +
             "If empty then it uses the same as the input products",
         ),
-        cache:Path=fa.Param("cache", help="The path to a directory with cached product outputs"),
-        centres:Path=fa.Param(help="A GeoJSON file specifying the centers of the chips."),
-        start:str=fa.Param(help="The start date."),
-        end:str=fa.Param(help="The start date."),
-        interval:Interval=fa.Param(Interval.MONTHLY, help="The start date."),
+        cache:Path=ta.Param("cache", help="The path to a directory with cached product outputs"),
+        centres:Path=ta.Param(help="A GeoJSON file specifying the centers of the chips."),
+        start:str=ta.Param(help="The start date."),
+        end:str=ta.Param(help="The start date."),
+        interval:Interval=ta.Param(Interval.MONTHLY, help="The start date."),
         width:int=128,
         height:int=None,
-        batch_size:int = fa.Param(default=32, help="The batch size."),
-        split:int=fa.Param(None, help="The cross-validation split to use.")
+        batch_size:int = ta.Param(default=32, help="The batch size."),
+        split:int=ta.Param(None, help="The cross-validation split to use.")
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
@@ -103,11 +107,11 @@ class EcoFuture(fa.TorchApp):
 
         datablock = DataBlock(
             blocks=(
-                ClipBlock(
+                ChipBlock(
                     products=inputs,
                     dates=dates[:-1]
                 ),
-                ClipBlock(
+                ChipBlock(
                     products=outputs,
                     dates=dates[1:]
                 ),
@@ -141,7 +145,7 @@ class EcoFuture(fa.TorchApp):
             temporal_processor_type=temporal_processor_type,
         )
 
-    def loss_func(self, l1:bool=fa.Param(default=False, help="Whether to use the L1 loss (Mean Absolute Loss). Otherwise the Mean Squared Error is used."),):
+    def loss_func(self, l1:bool=ta.Param(default=False, help="Whether to use the L1 loss (Mean Absolute Loss). Otherwise the Mean Squared Error is used."),):
         """
         Returns the loss function to use with the model.
         By default the Mean Squared Error (MSE) is used.
