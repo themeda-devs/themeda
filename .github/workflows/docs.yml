@@ -31,7 +31,7 @@ jobs:
         poetry run coverage html --directory gh-pages/coverage
         rm -f gh-pages/coverage/.gitignore
     - name: Deploy 🚀
-      uses: JamesIves/github-pages-deploy-action@4.4.1
+      uses: JamesIves/github-pages-deploy-action@v4
       with:
         branch: gh-pages # The branch the action should deploy to.
         folder: gh-pages # The folder the action should deploy.
