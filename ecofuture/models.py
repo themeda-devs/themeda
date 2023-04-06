@@ -37,7 +37,7 @@ class ResnetSpatialEncoder(nn.Module):
         encoder_resent = str(encoder_resent)
 
         assert hasattr(visionmodels, encoder_resent)
-        self.resnet = getattr(visionmodels, encoder_resent)(weights="DEFAULT")
+        self.resnet = getattr(visionmodels, encoder_resent)(weights=weights)
         assert isinstance(self.resnet, visionmodels.resnet.ResNet)
         self.average_channels = average_channels
 
@@ -67,7 +67,6 @@ class ResnetSpatialEncoder(nn.Module):
             x = self.resnet.avgpool(x).squeeze()
 
         return x, initial, l1, l2, l3, l4
-
 
 
 class EcoFutureModel(nn.Module):
