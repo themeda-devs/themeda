@@ -53,6 +53,15 @@ class ResnetSpatialEncoder(nn.Module):
 
     def forward(self, x):
         initial = x
+
+        time_distributed = (len(x.shape) == 5)
+        if time_distributed:
+            # Adapted from https://discuss.pytorch.org/t/any-pytorch-function-can-work-as-keras-timedistributed/1346/4
+            batch_size = x.shape[0]
+            timesteps = x.shape[1]
+            new_shape = (batch_size * timesteps,) + x.shape[2:]
+            x = x.contiguous().view(new_shape)
+
         x = self.resnet.conv1(x)
         x = self.resnet.bn1(x)
         x = self.resnet.relu(x)
@@ -65,6 +74,14 @@ class ResnetSpatialEncoder(nn.Module):
 
         if self.average_channels:
             x = self.resnet.avgpool(x).squeeze()
+
+        if time_distributed:
+            # returns samples, timesteps, output_size
+            x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+            l1 = l1.contiguous().view( (batch_size, timesteps, -1) + l1.shape[2:] )  
+            l2 = l2.contiguous().view( (batch_size, timesteps, -1) + l2.shape[2:] )  
+            l3 = l3.contiguous().view( (batch_size, timesteps, -1) + l3.shape[2:] )  
+            l4 = l4.contiguous().view( (batch_size, timesteps, -1) + l4.shape[2:] )  
 
         return x, initial, l1, l2, l3, l4
 
