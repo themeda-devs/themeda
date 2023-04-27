@@ -41,3 +41,39 @@ def test_encoder_shape_time_distributed():
     assert l3.shape == (batch_size, timesteps, 256, height//16, width//16)    
     assert l4.shape == (batch_size, timesteps, 512, height//32, width//32)    
     assert encoded.shape == (batch_size, timesteps, 512)    
+
+
+def test_temporal_processor_lstm():
+    batch_size = 10
+    n_products = 5
+    timesteps = 3
+    height = width = 128
+
+    model = models.EcoFutureModel(
+        in_channels=n_products,
+        out_channels=n_products,
+        temporal_processor_type="LSTM",
+        decoder_type="IDENTITY",
+    )
+    
+    x = torch.zeros( (batch_size, timesteps, n_products, height, width) )
+    result = model(x)
+    assert result.shape == (batch_size, timesteps, 512)
+
+
+def test_temporal_processor_gru():
+    batch_size = 10
+    n_products = 5
+    timesteps = 3
+    height = width = 128
+
+    model = models.EcoFutureModel(
+        in_channels=n_products,
+        out_channels=n_products,
+        temporal_processor_type="gru",
+        decoder_type="IDENTITY",
+    )
+    
+    x = torch.zeros( (batch_size, timesteps, n_products, height, width) )
+    result = model(x)
+    assert result.shape == (batch_size, timesteps, 512)

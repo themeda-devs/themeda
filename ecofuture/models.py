@@ -18,7 +18,17 @@ class ResNet(Enum):
 class TemporalProcessorType(Enum):
     LSTM = "LSTM"
     GRU = "GRU"
-    TransformerEncoder = "TransformerEncoder"
+    TRANSFORMER = "TRANSFORMER"
+    IDENTITY = "IDENTITY"
+
+    def __str__(self):
+        return self.value
+
+
+class DecoderType(Enum):
+    UNET = "UNET"
+    DIFFUSION = "DIFFUSION"
+    IDENTITY = "IDENTITY"
 
     def __str__(self):
         return self.value
@@ -94,18 +104,50 @@ class EcoFutureModel(nn.Module):
         encoder_resent:ResNet|str=ResNet.resnet18,
         encoder_weights:str="DEFAULT",
         temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
+        decoder_type:DecoderType|str=DecoderType.UNET,
+        temporal_layers:int=2,
+        temporal_size:int=512,
+        temporal_bias:bool=True,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        self.spatial_encoder = ResnetSpatialEncoder(in_channels=in_channels, encoder_resent=encoder_resent, weights=encoder_weights)
+        self.spatial_encoder = ResnetSpatialEncoder(
+            in_channels=in_channels, 
+            encoder_resent=encoder_resent, 
+            weights=encoder_weights,
+        )
 
-        # self.temporal_processor = 
-        # self.decoder = 
+        # Set up the temporal processor
+        rnn_kwargs = dict(
+            batch_first=True, 
+            bidirectional=False, 
+            input_size=512,
+            num_layers=temporal_layers,
+            hidden_size=temporal_size,
+            bias = temporal_bias,
+        )
+        temporal_processor_type = str(temporal_processor_type).upper()
+        if temporal_processor_type == "IDENTITY":
+            self.temporal_processor = nn.Identity()
+        elif temporal_processor_type == "LSTM":
+            self.temporal_processor = nn.LSTM(**rnn_kwargs)
+        elif temporal_processor_type == "GRU":
+            self.temporal_processor = nn.GRU(**rnn_kwargs)
+        else:
+            raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
 
+        decoder_type = str(decoder_type).upper()
+        if decoder_type == "IDENTITY":
+            self.decoder = nn.Identity()
+        else:
+            raise ValueError(f"Cannot recognize decoder type {decoder_type}")
 
     def forward(self, x:torch.Tensor):
-        # This could be nn.Sequential but this might be helpful for debugging
-        spatially_encoded_layers = self.spatial_encoder(x)
-        temporally_processed = self.temporal_processor(spatially_encoded_layers)
+        x, initial, l1, l2, l3, l4 = self.spatial_encoder(x)
+        
+        temporally_processed = self.temporal_processor(x)
+        if isinstance(temporally_processed, tuple):
+            temporally_processed = temporally_processed[0]
+
         return self.decoder(temporally_processed)
 
