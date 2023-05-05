@@ -1,6 +1,6 @@
 import torch
 from ecofuture import models
-
+from torch import nn
 
 def test_encoder_shape():
     batch_size = 10
@@ -53,11 +53,12 @@ def test_temporal_processor_lstm():
         in_channels=n_products,
         out_channels=n_products,
         temporal_processor_type="LSTM",
-        decoder_type="IDENTITY",
+        decoder_type=None,
     )
     
     x = torch.zeros( (batch_size, timesteps, n_products, height, width) )
     result = model(x)
+    assert isinstance(model.temporal_processor, nn.LSTM)
     assert result.shape == (batch_size, timesteps, 512)
 
 
@@ -71,9 +72,30 @@ def test_temporal_processor_gru():
         in_channels=n_products,
         out_channels=n_products,
         temporal_processor_type="gru",
-        decoder_type="IDENTITY",
+        decoder_type=None,
     )
     
     x = torch.zeros( (batch_size, timesteps, n_products, height, width) )
     result = model(x)
+    assert isinstance(model.temporal_processor, nn.GRU)
     assert result.shape == (batch_size, timesteps, 512)
+
+
+def test_unet_decoder():
+    batch_size = 10
+    n_products = 5
+    out_products = 2
+    timesteps = 3
+    height = width = 128
+
+    model = models.EcoFutureModel(
+        in_channels=n_products,
+        out_channels=out_products,
+        temporal_processor_type="gru",
+        decoder_type="unet",
+    )
+    
+    x = torch.zeros( (batch_size, timesteps, n_products, height, width) )
+    result = model(x)
+    assert isinstance(model.decoder, models.UNetDecoder)
+    assert result.shape == (batch_size, timesteps, out_products, height, width)
