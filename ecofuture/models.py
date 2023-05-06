@@ -4,6 +4,45 @@ import torch
 from torch import nn
 import torchvision.models as visionmodels
 from enum import Enum
+from torch.nn.parameter import Parameter
+import torch.nn.functional as F
+
+class OrdinalTensor(torch.Tensor):
+    pass
+
+
+class OrdinalEmbedding(nn.Module):
+    def __init__(
+        self,
+        category_count,
+        embedding_dim,
+        bias:bool=True,
+        device=None, 
+        dtype=None,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)    
+        factory_kwargs = {'device': device, 'dtype': dtype}
+
+        self.embedding_dim = embedding_dim
+        self.distance_scores = Parameter(torch.empty((category_count-1,), **factory_kwargs), requires_grad=True)
+        self.weight = Parameter(torch.empty((embedding_dim,), **factory_kwargs), requires_grad=True)
+        if bias:
+            self.bias = Parameter(torch.empty((embedding_dim,), **factory_kwargs), requires_grad=True)
+        else:
+            self.bias = Parameter(torch.zeros((embedding_dim,), **factory_kwargs), requires_grad=False)
+
+    def forward(self, x):
+        distances = torch.cumsum(F.softmax(self.distance_scores, dim=0), dim=0)
+        
+        # prepend zero
+        distances = torch.cat([torch.zeros((1,), device=distances.device, dtype=distances.dtype), distances])
+        
+        distance = torch.gather(distances, 0, x.flatten())
+        embedded = self.bias + distance.unsqueeze(1) * self.weight.unsqueeze(0)
+        embedded = embedded.reshape(x.shape + (-1,))
+
+        return embedded
 
 
 class MultiDatatypeEmbedding(nn.Module):
@@ -11,6 +50,7 @@ class MultiDatatypeEmbedding(nn.Module):
         self,
         in_channels_continuous:int=0,
         categorical_counts:List[int]|None = None,
+        ordinal_counts:List[int]|None = None,
         embedding_dim:int=16,        
         **kwargs,
     ):
@@ -20,25 +60,33 @@ class MultiDatatypeEmbedding(nn.Module):
         self.in_channels_continuous = in_channels_continuous
         if in_channels_continuous:
             self.embeddings_continuous = nn.Embedding(in_channels_continuous, embedding_dim)
+            self.bias_continuous = nn.Embedding(in_channels_continuous, embedding_dim)
         
         self.categorical_counts = categorical_counts
         if self.categorical_counts:
-            self.embeddings = nn.ModuleList([nn.Embedding(count, embedding_dim) for count in self.categorical_counts])
+            self.embeddings_categorical = nn.ModuleList([nn.Embedding(count, embedding_dim) for count in self.categorical_counts])
 
-        assert self.in_channels_continuous or self.categorical_counts
+        self.ordinal_counts = ordinal_counts
+        if self.ordinal_counts:
+            self.embeddings_ordinal = nn.ModuleList([OrdinalEmbedding(count, embedding_dim) for count in self.ordinal_counts])
+
+        assert self.in_channels_continuous or self.categorical_counts or self.ordinal_counts
 
     def forward(self, *inputs):
         batch_size, timesteps, height, width = inputs[0].shape
         x = torch.zeros( (batch_size, timesteps, self.embedding_dim, height, width) ) 
         categorical_index = 0
+        ordinal_index = 0
         continuous_index = torch.as_tensor(0)
         for input in inputs:
-            is_continuous = torch.is_floating_point(input)
-            if is_continuous:
-                embedding = input.unsqueeze(-1) * self.embeddings_continuous(continuous_index)
+            if isinstance(input, OrdinalTensor):
+                embedding = self.embeddings_ordinal[ordinal_index](input)
+                ordinal_index += 1
+            elif torch.is_floating_point(input):
+                embedding = input.unsqueeze(-1) * self.embeddings_continuous(continuous_index) + self.bias_continuous(continuous_index)
                 continuous_index += 1
             else:
-                embedding = self.embeddings[categorical_index](input)
+                embedding = self.embeddings_categorical[categorical_index](input)
                 categorical_index += 1
             
             embedding = embedding.permute(0, 1, 4, 2, 3)

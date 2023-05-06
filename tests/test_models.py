@@ -115,3 +115,17 @@ def test_embedding():
 
     x = embedding(categorical0, continuous0, categorical1, continuous1, categorical2)
     assert x.shape == (batch_size, timesteps, embedding_dim, height, width)
+
+
+def test_ordinal_embedding():
+    embedding_dim = 8
+    batch_size = 10
+    timesteps = 3
+    height = width = 128
+    category_count = 5
+    
+    embedding = models.OrdinalEmbedding(embedding_dim=embedding_dim, category_count=category_count)
+    ordinal = torch.randint( low=0, high=category_count, size=(batch_size, timesteps, height, width) )
+
+    x = embedding(ordinal)
+    assert x.shape == (batch_size, timesteps, height, width, embedding_dim)
