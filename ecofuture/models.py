@@ -1,8 +1,49 @@
+from typing import List
 from torch import Tensor
 import torch
 from torch import nn
 import torchvision.models as visionmodels
 from enum import Enum
+
+
+class MultiDatatypeEmbedding(nn.Module):
+    def __init__(
+        self,
+        in_channels_continuous:int=0,
+        categorical_counts:List[int]|None = None,
+        embedding_dim:int=16,        
+        **kwargs,
+    ):
+        super().__init__(**kwargs)    
+        self.embedding_dim = embedding_dim
+
+        self.in_channels_continuous = in_channels_continuous
+        if in_channels_continuous:
+            self.embeddings_continuous = nn.Embedding(in_channels_continuous, embedding_dim)
+        
+        self.categorical_counts = categorical_counts
+        if self.categorical_counts:
+            self.embeddings = nn.ModuleList([nn.Embedding(count, embedding_dim) for count in self.categorical_counts])
+
+        assert self.in_channels_continuous or self.categorical_counts
+
+    def forward(self, *inputs):
+        batch_size, timesteps, height, width = inputs[0].shape
+        x = torch.zeros( (batch_size, timesteps, self.embedding_dim, height, width) ) 
+        categorical_index = 0
+        continuous_index = torch.as_tensor(0)
+        for input in inputs:
+            is_continuous = torch.is_floating_point(input)
+            if is_continuous:
+                embedding = input.unsqueeze(-1) * self.embeddings_continuous(continuous_index)
+                continuous_index += 1
+            else:
+                embedding = self.embeddings[categorical_index](input)
+                categorical_index += 1
+            
+            embedding = embedding.permute(0, 1, 4, 2, 3)
+            x += embedding
+        return x
 
 
 def time_distributed_combine(x):
@@ -302,8 +343,10 @@ class ResnetSpatialEncoder(nn.Module):
 class EcoFutureModel(nn.Module):
     def __init__(
         self,
-        in_channels:int,
-        out_channels:int,
+        in_channels_continuous:int=0,        
+        categorical_counts:List[int]|None = None,
+        out_channels:int|None=None,
+        embedding_dim:int=16,        
         encoder_resent:ResNet|str=ResNet.resnet18,
         encoder_weights:str="DEFAULT",
         temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
@@ -314,8 +357,20 @@ class EcoFutureModel(nn.Module):
         **kwargs,
     ):
         super().__init__(**kwargs)
+        categorical_counts = categorical_counts or []
+        self.embedding = MultiDatatypeEmbedding(
+            embedding_dim=embedding_dim,
+            categorical_counts=categorical_counts,
+            in_channels_continuous=in_channels_continuous,
+        )
+        
+        # If the number of output channels isn't explicitly given then assume that the outputs match the inputs
+        if not out_channels:
+            out_channels = in_channels_continuous + sum(categorical_counts)
+        self.out_channels = out_channels
+
         self.spatial_encoder = ResnetSpatialEncoder(
-            in_channels=in_channels, 
+            in_channels=embedding_dim, 
             encoder_resent=encoder_resent, 
             weights=encoder_weights,
         )
@@ -344,11 +399,15 @@ class EcoFutureModel(nn.Module):
         if decoder_type == "NONE":
             self.decoder = None
         elif decoder_type == "UNET":
-            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=in_channels)
+            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=embedding_dim)
         else:
             raise ValueError(f"Cannot recognize decoder type {decoder_type}")
 
-    def forward(self, x:torch.Tensor):
+    def forward(self, *inputs):
+        # Embedding
+        x = self.embedding(*inputs)
+
+        # Spatial Encoding
         x, initial, l1, l2, l3, l4 = self.spatial_encoder(x)
         
         # Temporal processing
