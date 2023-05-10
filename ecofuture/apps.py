@@ -158,8 +158,8 @@ class EcoFuture(ta.TorchApp):
             nn.Module: The created model.
         """
         return EcoFutureModel(
-            in_channels=len(self.inputs), # Assumes only one channel per product
-            out_channels=len(self.outputs),
+            categorical_counts=[105], # hack
+            out_channels=105,
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
         )

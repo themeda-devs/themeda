@@ -28,10 +28,12 @@ class CroppedChip():
 
         # TODO Map values
         
-        return torch.as_tensor(data[self.x:self.x+self.width, self.y:self.y+self.height])
+        t = torch.as_tensor(data[self.x:self.x+self.width, self.y:self.y+self.height]).unsqueeze(0)
+        return t
 
     def get_tensor(self, base_dir:Path, dates:List[datetime]):
-        return torch.cat( [self.get_tensor_at_date(base_dir=base_dir, date=date) for date in dates] )
+        t = torch.cat( [self.get_tensor_at_date(base_dir=base_dir, date=date) for date in dates] )
+        return t
 
 
 # @dataclass
