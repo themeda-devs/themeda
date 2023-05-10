@@ -74,7 +74,7 @@ class MultiDatatypeEmbedding(nn.Module):
 
     def forward(self, *inputs):
         batch_size, timesteps, height, width = inputs[0].shape
-        x = torch.zeros( (batch_size, timesteps, self.embedding_dim, height, width) ) 
+        x = torch.zeros( (batch_size, timesteps, self.embedding_dim, height, width), device=inputs[0].device ) 
         categorical_index = 0
         ordinal_index = 0
         continuous_index = torch.as_tensor(0)
@@ -86,7 +86,7 @@ class MultiDatatypeEmbedding(nn.Module):
                 embedding = input.unsqueeze(-1) * self.embeddings_continuous(continuous_index) + self.bias_continuous(continuous_index)
                 continuous_index += 1
             else:
-                embedding = self.embeddings_categorical[categorical_index](input)
+                embedding = self.embeddings_categorical[categorical_index](input.int())
                 categorical_index += 1
             
             embedding = embedding.permute(0, 1, 4, 2, 3)
@@ -435,7 +435,7 @@ class EcoFutureModel(nn.Module):
         )
         temporal_processor_type = str(temporal_processor_type).upper()
         if temporal_processor_type == "NONE":
-            self.temporal_processor = None
+            self.temporal_processor = nn.Identity()
         elif temporal_processor_type == "LSTM":
             self.temporal_processor = nn.LSTM(**rnn_kwargs)
         elif temporal_processor_type == "GRU":
@@ -469,5 +469,10 @@ class EcoFutureModel(nn.Module):
             return temporally_processed
 
         # Decoding
-        return self.decoder(initial, l1, l2, l3, l4)
+        decoded = self.decoder(initial, l1, l2, l3, l4)
+
+        decoded = decoded.permute(0, 2, 1, 3, 4) # chan
+        # TODO Split into tuple
+
+        return (decoded,)
 

@@ -14,7 +14,7 @@ from enum import Enum
 import dateutil.parser
 from dateutil import rrule
 
-from .dataloaders import TPlus1Dataloader
+from .dataloaders import TPlus1Dataloader, t_plus_one, TPlus1Callback
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
 from .transforms import CroppedChipBlock, CroppedChip
 from .loss import MultiDatatypeLoss
@@ -89,7 +89,7 @@ class EcoFuture(ta.TorchApp):
         interval:Interval=ta.Param(Interval.YEARLY.value, help="The start date."),
         width:int=200,
         height:int=None,
-        batch_size:int = ta.Param(default=32, help="The batch size."),
+        batch_size:int = ta.Param(default=1, help="The batch size."),
         split:int=ta.Param(None, help="The cross-validation split to use."),
         validation_proportion:float=0.2,
     ) -> DataLoaders:
@@ -133,7 +133,7 @@ class EcoFuture(ta.TorchApp):
         splitter = AttributeSplitter()
 
         datablock = DataBlock(
-            blocks=(CroppedChipBlock(base_dir=level4, dates=dates),),
+            blocks=(CroppedChipBlock(base_dir=level4, dates=dates),CroppedChipBlock(base_dir=level4, dates=dates)),
             splitter=splitter,
         )
 
@@ -141,7 +141,8 @@ class EcoFuture(ta.TorchApp):
             datablock,
             source=cropped_chips,
             bs=batch_size,
-            dl_type=TPlus1Dataloader,
+            # dl_type=TPlus1Dataloader,
+            # dl_kwargs=[dict(after_batch=t_plus_one),dict(after_batch=t_plus_one)],
         )
 
         return dataloaders
@@ -149,7 +150,7 @@ class EcoFuture(ta.TorchApp):
     def model(
         self,
         encoder_resent:ResNet=ResNet.resnet18.value,
-        temporal_processor_type:TemporalProcessorType=TemporalProcessorType.LSTM.value,
+        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.LSTM.value, case_sensitive=False),
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
@@ -163,6 +164,9 @@ class EcoFuture(ta.TorchApp):
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
         )
+    
+    def extra_callbacks(self):
+        return [TPlus1Callback()]
 
     def loss_func(
         self, 

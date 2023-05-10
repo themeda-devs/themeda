@@ -18,6 +18,7 @@ class MultiDatatypeLoss(nn.Module):
     def forward(self, predictions, *targets):
         assert isinstance(predictions, tuple)
         assert len(predictions) == len(targets)
+        loss = None
         
         for prediction, target in zip(predictions, targets):
             if isinstance(target, OrdinalTensor):
@@ -32,6 +33,9 @@ class MultiDatatypeLoss(nn.Module):
                 # TODO Focal Loss
                 target_loss = F.cross_entropy(prediction, target, reduction="none")
             
-            loss += target_loss
+            if loss is None:
+                loss = target_loss
+            else:
+                loss += target_loss
 
         return loss.mean()
