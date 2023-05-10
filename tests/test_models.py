@@ -95,8 +95,10 @@ def test_unet_decoder():
     
     x = torch.zeros( (batch_size, timesteps, height, width) )
     result = model(x)
+    assert isinstance(result, tuple)
+    assert len(result) == 1
     assert isinstance(model.decoder, models.UNetDecoder)
-    assert result.shape == (batch_size, timesteps, out_products, height, width)
+    assert result[0].shape == (batch_size, timesteps, out_products, height, width)
 
 
 def test_embedding():

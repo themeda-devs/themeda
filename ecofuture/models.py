@@ -471,7 +471,6 @@ class EcoFutureModel(nn.Module):
         # Decoding
         decoded = self.decoder(initial, l1, l2, l3, l4)
 
-        decoded = decoded.permute(0, 2, 1, 3, 4) # chan
         # TODO Split into tuple
 
         return (decoded,)

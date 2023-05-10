@@ -31,6 +31,7 @@ class MultiDatatypeLoss(nn.Module):
                     target_loss = F.mse_loss(prediction, reduction="none")
             else:
                 # TODO Focal Loss
+                prediction = prediction.permute(0, 2, 1, 3, 4) # softmax over axis 1
                 target_loss = F.cross_entropy(prediction, target, reduction="none")
             
             if loss is None:
