@@ -16,6 +16,8 @@ import geojson
 
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
 from .transforms import Chip, ChipBlock
+from .loss import MultiDatatypeLoss
+
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -145,14 +147,19 @@ class EcoFuture(ta.TorchApp):
             temporal_processor_type=temporal_processor_type,
         )
 
-    def loss_func(self, l1:bool=ta.Param(default=False, help="Whether to use the L1 loss (Mean Absolute Loss). Otherwise the Mean Squared Error is used."),):
+    def loss_func(
+        self, 
+        l1:bool=ta.Param(
+            default=False, 
+            help="Whether to use the L1 loss (Mean Absolute Loss) for continuous variables. "
+                "Otherwise the Mean Squared Error (L2 loss) is used.",
+        ),
+    ):
         """
         Returns the loss function to use with the model.
         By default the Mean Squared Error (MSE) is used.
         """
-        if l1:
-            return nn.L1Loss()              
-        return nn.MSELoss()
+        return MultiDatatypeLoss(l1=l1)
         
     def output_results(
         self,
