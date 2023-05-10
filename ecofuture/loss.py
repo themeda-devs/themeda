@@ -16,13 +16,16 @@ class MultiDatatypeLoss(nn.Module):
         self.l1 = l1    
 
     def forward(self, predictions, *targets):
-        assert isinstance(predictions, tuple)
+        if not isinstance(predictions, tuple):
+            predictions = (predictions,)
+
         assert len(predictions) == len(targets)
-        loss = None
+        loss = 0.0
         
         for prediction, target in zip(predictions, targets):
             if isinstance(target, OrdinalTensor):
                 # TODO Earth Mover Loss
+                prediction = prediction.permute(0, 2, 1, 3, 4) # softmax over axis 1
                 target_loss = F.cross_entropy(prediction, target, reduction="none")
             elif torch.is_floating_point(target):
                 if self.l1:
@@ -34,9 +37,6 @@ class MultiDatatypeLoss(nn.Module):
                 prediction = prediction.permute(0, 2, 1, 3, 4) # softmax over axis 1
                 target_loss = F.cross_entropy(prediction, target, reduction="none")
             
-            if loss is None:
-                loss = target_loss
-            else:
-                loss += target_loss
+            loss += target_loss
 
         return loss.mean()
