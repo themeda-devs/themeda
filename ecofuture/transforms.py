@@ -25,6 +25,9 @@ class CroppedChip():
 
     def get_tensor_at_date(self, base_dir:Path, date:datetime) -> Tensor:
         file = self.get_file(base_dir, date)
+        if not file.exists():
+            return None
+            
         with rasterio.open(file) as img:
             data = img.read(1)
 
@@ -34,8 +37,8 @@ class CroppedChip():
         return t
 
     def get_tensor(self, base_dir:Path, dates:List[datetime]):
-        t = torch.cat( [self.get_tensor_at_date(base_dir=base_dir, date=date) for date in dates] )
-        return t
+        tensors = [self.get_tensor_at_date(base_dir=base_dir, date=date) for date in dates]
+        return torch.cat( [t for t in tensors if t is not None] )
 
 
 # @dataclass
