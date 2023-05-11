@@ -26,7 +26,7 @@ class MultiDatatypeLoss(nn.Module):
             if isinstance(target, OrdinalTensor):
                 # TODO Earth Mover Loss
                 prediction = prediction.permute(0, 2, 1, 3, 4) # softmax over axis 1
-                target_loss = F.cross_entropy(prediction, target, reduction="none")
+                target_loss = F.cross_entropy(prediction, target.int(), reduction="none")
             elif torch.is_floating_point(target):
                 if self.l1:
                     target_loss = F.l1_loss(prediction, reduction="none")
@@ -35,7 +35,7 @@ class MultiDatatypeLoss(nn.Module):
             else:
                 # TODO Focal Loss
                 prediction = prediction.permute(0, 2, 1, 3, 4) # softmax over axis 1
-                target_loss = F.cross_entropy(prediction, target, reduction="none")
+                target_loss = F.cross_entropy(prediction, target.int(), reduction="none")
             
             loss += target_loss
 

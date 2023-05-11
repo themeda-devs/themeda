@@ -150,7 +150,7 @@ class EcoFuture(ta.TorchApp):
     def model(
         self,
         encoder_resent:ResNet=ResNet.resnet18.value,
-        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.LSTM.value, case_sensitive=False),
+        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
