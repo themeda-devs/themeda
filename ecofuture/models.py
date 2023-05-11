@@ -108,7 +108,7 @@ def time_distributed_combine(x):
 
     return x, time_distributed, batch_size, timesteps
 
-@torch.jit.script
+# @torch.jit.script
 def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
     """
     Center-crops the encoder_layer to the size of the decoder_layer,
