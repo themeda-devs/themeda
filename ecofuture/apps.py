@@ -2,7 +2,6 @@
 
 import random
 import re
-from typing import List
 from pathlib import Path
 from torch import nn
 from fastai.data.core import DataLoaders
@@ -16,10 +15,11 @@ from enum import Enum
 import dateutil.parser
 from dateutil import rrule
 
-from .dataloaders import TPlus1Dataloader, t_plus_one, TPlus1Callback
+from .dataloaders import TPlus1Callback
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
 from .transforms import CroppedChipBlock, CroppedChip
 from .loss import MultiDatatypeLoss
+from .metrics import accuracy
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -190,3 +190,6 @@ class EcoFuture(ta.TorchApp):
         results,
     ):
         return results
+
+    def metrics(self):
+        return [accuracy]
