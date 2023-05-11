@@ -716,6 +716,18 @@ unicode = ["unicodedata2 (>=15.0.0)"]
 woff = ["zopfli (>=0.1.4)", "brotlicffi (>=0.8.0)", "brotli (>=1.0.1)"]
 
 [[package]]
+name = "future-typing"
+version = "0.4.1"
+description = "Use generic type hints and new union syntax `|` with python 3.6+"
+category = "main"
+optional = false
+python-versions = ">=3.6"
+
+[package.extras]
+dev = ["pre-commit (==2.12.1)"]
+test = ["black (==21.5b1)", "flake8 (==3.9.2)", "isort (==5.8.0)", "mypy (==0.812)", "pytest (==6.2.4)", "pytest-cov (==2.11.1)", "typing-extensions (==3.10.0.0)"]
+
+[[package]]
 name = "geojson"
 version = "3.0.1"
 description = "Python bindings and utilities for GeoJSON"
@@ -2075,82 +2087,6 @@ dev = ["mypy", "typing-extensions", "pycodestyle", "flake8", "rich-click", "clic
 
 [[package]]
 name = "sentry-sdk"
-version = "1.21.1"
-description = "Python client for Sentry (https://sentry.io)"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-certifi = "*"
-urllib3 = {version = ">=1.26.11", markers = "python_version >= \"3.6\""}
-
-[package.extras]
-aiohttp = ["aiohttp (>=3.5)"]
-arq = ["arq (>=0.23)"]
-beam = ["apache-beam (>=2.12)"]
-bottle = ["bottle (>=0.12.13)"]
-celery = ["celery (>=3)"]
-chalice = ["chalice (>=1.16.0)"]
-django = ["django (>=1.8)"]
-falcon = ["falcon (>=1.4)"]
-fastapi = ["fastapi (>=0.79.0)"]
-flask = ["flask (>=0.11)", "blinker (>=1.1)"]
-grpcio = ["grpcio (>=1.21.1)"]
-httpx = ["httpx (>=0.16.0)"]
-huey = ["huey (>=2)"]
-opentelemetry = ["opentelemetry-distro (>=0.35b0)"]
-pure_eval = ["pure-eval", "executing", "asttokens"]
-pymongo = ["pymongo (>=3.1)"]
-pyspark = ["pyspark (>=2.4.4)"]
-quart = ["quart (>=0.16.1)", "blinker (>=1.1)"]
-rq = ["rq (>=0.6)"]
-sanic = ["sanic (>=0.8)"]
-sqlalchemy = ["sqlalchemy (>=1.2)"]
-starlette = ["starlette (>=0.19.1)"]
-starlite = ["starlite (>=1.48)"]
-tornado = ["tornado (>=5)"]
-
-[[package]]
-name = "sentry-sdk"
-version = "1.22.0"
-description = "Python client for Sentry (https://sentry.io)"
-category = "main"
-optional = false
-python-versions = "*"
-
-[package.dependencies]
-certifi = "*"
-urllib3 = {version = ">=1.26.11", markers = "python_version >= \"3.6\""}
-
-[package.extras]
-aiohttp = ["aiohttp (>=3.5)"]
-arq = ["arq (>=0.23)"]
-beam = ["apache-beam (>=2.12)"]
-bottle = ["bottle (>=0.12.13)"]
-celery = ["celery (>=3)"]
-chalice = ["chalice (>=1.16.0)"]
-django = ["django (>=1.8)"]
-falcon = ["falcon (>=1.4)"]
-fastapi = ["fastapi (>=0.79.0)"]
-flask = ["flask (>=0.11)", "blinker (>=1.1)"]
-grpcio = ["grpcio (>=1.21.1)"]
-httpx = ["httpx (>=0.16.0)"]
-huey = ["huey (>=2)"]
-opentelemetry = ["opentelemetry-distro (>=0.35b0)"]
-pure_eval = ["pure-eval", "executing", "asttokens"]
-pymongo = ["pymongo (>=3.1)"]
-pyspark = ["pyspark (>=2.4.4)"]
-quart = ["quart (>=0.16.1)", "blinker (>=1.1)"]
-rq = ["rq (>=0.6)"]
-sanic = ["sanic (>=0.8)"]
-sqlalchemy = ["sqlalchemy (>=1.2)"]
-starlette = ["starlette (>=0.19.1)"]
-starlite = ["starlite (>=1.48)"]
-tornado = ["tornado (>=5)"]
-
-[[package]]
-name = "sentry-sdk"
 version = "1.22.1"
 description = "Python client for Sentry (https://sentry.io)"
 category = "main"
@@ -3048,7 +2984,7 @@ testing = ["pytest (>=6)", "pytest-checkdocs (>=2.4)", "flake8 (<5)", "pytest-co
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8,<3.12"
-content-hash = "ffeb86bde5c70b6586ebffc23c7969d684bebebcf010e131db8d4e1a237c38da"
+content-hash = "4304a1eefeb932ca76d3f0581a3cae8f744b83a5d05df33613fa772027e01804"
 
 [metadata.files]
 affine = []
@@ -3110,6 +3046,7 @@ fastprogress = []
 filelock = []
 flask = []
 fonttools = []
+future-typing = []
 geojson = []
 gitdb = []
 gitpython = []
