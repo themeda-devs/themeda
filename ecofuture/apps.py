@@ -1,4 +1,3 @@
-# -*- coding: future_typing -*-
 
 import random
 import re
@@ -94,6 +93,9 @@ class EcoFuture(ta.TorchApp):
         batch_size:int = ta.Param(default=1, help="The batch size."),
         split:int=ta.Param(None, help="The cross-validation split to use."),
         validation_proportion:float=0.2,
+        stride:int = 1,
+        stride_x:int = 0,
+        stride_y:int = 0,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
@@ -104,6 +106,9 @@ class EcoFuture(ta.TorchApp):
         # self.outputs = outputs or inputs
         self.height = height or width
         self.width = width
+
+        stride_x = stride_x or stride
+        stride_y = stride_y or stride
 
         dates = get_dates(start=start, end=end, interval=interval)
 
@@ -120,8 +125,8 @@ class EcoFuture(ta.TorchApp):
         cropped_chips = []
         for chip in chips:
             validation = random.random() < validation_proportion
-            for x in range(0, 4_000, self.width):
-                for y in range(0, 4_000, self.height):
+            for x in range(0, 4_000, self.width * stride_x):
+                for y in range(0, 4_000, self.height * stride_y):
                     cropped_chip = CroppedChip(
                         chip=chip,
                         validation=validation,
