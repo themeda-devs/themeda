@@ -160,9 +160,10 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
+        categorical_counts = 21 # hack
         return EcoFutureModel(
-            categorical_counts=[105], # hack
-            out_channels=105,
+            categorical_counts=[categorical_counts], # hack
+            out_channels=categorical_counts, # hack
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
         )
