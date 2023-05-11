@@ -1,3 +1,5 @@
+# -*- coding: future_typing -*-
+
 from typing import List
 import torch
 from dataclasses import dataclass

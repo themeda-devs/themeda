@@ -1,3 +1,5 @@
+# -*- coding: future_typing -*-
+
 import random
 import re
 from typing import List
