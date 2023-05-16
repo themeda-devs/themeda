@@ -53,3 +53,4 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 ecofuture = "ecofuture.apps:EcoFuture.main"
+ecofuture_form_chiplets = "ecofuture.preproc.cli:run"
