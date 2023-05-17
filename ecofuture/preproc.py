@@ -91,7 +91,8 @@ def load_chiplets(
     years: collections.abc.Container[int] | None = None,
     subset_nums: collections.abc.Container[int] | None = None,
     sorted_filenames: bool = False,
-) -> typing.Iterator[ChipletFile]:
+    just_filenames: bool = False,
+) -> typing.Iterator[ChipletFile] | typing.Iterator[ChipletFilenameInfo]:
     """
     Loads pre-processed chiplets from disk.
 
@@ -107,6 +108,8 @@ def load_chiplets(
         Whether to sort the matching filenames prior to yielding. If `False` (the
         default), they will be in arbitrary order. However, setting `True` will load
         all the filenames into memory.
+    just_filenames:
+        If `True`, only return the matching filename info rather than the data.
 
     Returns
     -------
@@ -130,21 +133,26 @@ def load_chiplets(
         ):
             continue
 
-        info = np.load(file=potential_filename)
+        if just_filenames:
+            yield filename_info
 
-        chiplet = ChipletFile(
-            measurement=info["measurement"].item(),
-            year=info["year"].item(),
-            subset_num=info["subset_num"].item(),
-            subset_instance_num=info["subset_instance_num"].item(),
-            data=info["data"],
-            position=Position(
-                x=info["position"][0],
-                y=info["position"][1],
-            ),
-        )
+        else:
 
-        yield chiplet
+            info = np.load(file=potential_filename)
+
+            chiplet = ChipletFile(
+                measurement=info["measurement"].item(),
+                year=info["year"].item(),
+                subset_num=info["subset_num"].item(),
+                subset_instance_num=info["subset_instance_num"].item(),
+                data=info["data"],
+                position=Position(
+                    x=info["position"][0],
+                    y=info["position"][1],
+                ),
+            )
+
+            yield chiplet
 
 
 def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
