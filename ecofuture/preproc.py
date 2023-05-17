@@ -29,6 +29,9 @@ Note that the execution is pretty slow, particularly due to the savanna region b
 checking. There is scope for parallelisation, but it also only needs to be run once-ish.
 It also occupies a fair bit of RAM.
 
+The pre-processed data can then be loaded using the `load_chiplets` function, which
+returns a generator that yields chiplet data and metadata - optionally filtered by year
+and subset.
 """
 
 import pathlib
@@ -68,12 +71,14 @@ class Chiplet(Chip):
     subset_num: int | None = None
     subset_instance_num: int | None = None
 
+
 @dataclasses.dataclass
 class ChipletFilenameInfo:
     measurement: str
     year: int
     subset_num: int
     subset_instance_num: int
+
 
 @dataclasses.dataclass
 class ChipletFile(ChipletFilenameInfo):
@@ -86,6 +91,26 @@ def load_chiplets(
     subset_nums: collections.abc.Container[int] | None = None,
     sorted_filenames: bool = False,
 ) -> typing.Iterator[ChipletFile]:
+    """
+    Loads pre-processed chiplets from disk.
+
+    Parameters
+    ----------
+    chiplet_dir:
+        Directory containing the chiplet files.
+    years:
+        A collection of years to include; default is to include all years.
+    subset_nums:
+        A collection of subsets to include; default is to include all subsets.
+    sorted_filenames:
+        Whether to sort the matching filenames prior to yielding. If `False` (the
+        default), they will be in arbitrary order. However, setting `True` will load
+        all the filenames into memory.
+
+    Returns
+    -------
+    A generator that yields chiplet data and metadata.
+    """
 
     potential_filenames = chiplet_dir.glob("*.npz")
 
@@ -97,9 +122,8 @@ def load_chiplets(
 
         filename_info = parse_chiplet_filename(filename=potential_filename)
 
-        if (
-            (years is not None and filename_info.year not in years)
-            or (subset_nums is not None and filename_info.subset_num not in subset_nums)
+        if (years is not None and filename_info.year not in years) or (
+            subset_nums is not None and filename_info.subset_num not in subset_nums
         ):
             continue
 
@@ -117,6 +141,7 @@ def load_chiplets(
 
 
 def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
+    "Converts a chiplet filename into a structured representation"
 
     items = filename.stem.split("_")
 
@@ -150,6 +175,30 @@ def save_chiplets(
     subset_seed: int | None = 254204982,
     overwrite: bool = False,
 ) -> None:
+    """
+    Converts and saves a set of DEA chips as chiplets.
+
+    Parameters
+    ----------
+    chip_dir:
+        Directory containing the DEA chip files (i.e., .tif files).
+    chiplet_dir:
+        Directory to write the chiplet files.
+    region_file:
+        Path to a GeoJSON file that specifies the region of interest.
+    chiplet_spatial_size_pix:
+        Size of the sides of each chiplet. Must divide evenly into the chip size.
+    remap:
+        Whether to convert the DEA Level 4 labels into a collaborator-specified
+        remapping.
+    n_subsets:
+        Number of subsets to break the chiplet locations into.
+    subset_seed:
+        Random number generator seed for the chiplet subset allocator.
+    overwrite:
+        Whether to overwrite already-existing chiplet files.
+    """
+
     product = "ga_ls_landcover_class_cyear_2"
     measurement = "level4"
 
@@ -195,6 +244,8 @@ def render_chiplets(
     remap: bool = True,
     overwrite: bool = False,
 ) -> None:
+    "Formats and saves chiplets to disk."
+
     if remap:
         remap_lut = get_remapping_lut()
 
@@ -238,6 +289,8 @@ def assign_subset_labels(
     n_subsets: int,
     subset_seed: int | None = None,
 ) -> None:
+    """Gives each chiplet with a unique spatial location a randomly-assigned subset
+    number"""
     # count the instance within a given subset
     # all years for the same spatial location have the same subset instance number
     subset_instance_counter: collections.Counter[int] = collections.Counter()
@@ -261,6 +314,7 @@ def assign_subset_labels(
 
 
 def get_chiplet_filename(chiplet: Chiplet) -> str:
+    "Formats a chiplet filename from its metadata"
     filename = (
         f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
         + f"{chiplet.subset_num}_{chiplet.subset_instance_num:08d}.npz"
@@ -274,6 +328,10 @@ def form_chiplets(
     chiplet_spatial_size_pix: int,
     region: shapely.geometry.polygon.Polygon,
 ) -> dict[Position, dict[int, Chiplet]]:
+    """
+    Converts a set of chips into chiplets that lie within the region of interest.
+    """
+
     chiplets: dict[Position, dict[int, Chiplet]] = {}
 
     # `pos_chips` will contain the entries for each year for a given position
@@ -292,13 +350,11 @@ def form_chiplets(
         rep_chip_splits = split_chip(
             data=rep_chip_data,
             chiplet_spatial_size_pix=chiplet_spatial_size_pix,
-            # region=region,
+            region=region,
         )
 
         # get the validity (whether the chiplet is in the region) of each chiplet
-        validity = [
-            True for rep_chip_split in rep_chip_splits  # rep_chip_split.in_region
-        ]
+        validity = [rep_chip_split.in_region for rep_chip_split in rep_chip_splits]
 
         # now iterate over the yearly chips at this position
         for chip in pos_chips.values():
@@ -346,6 +402,8 @@ def split_chip(
     chiplet_spatial_size_pix: int,
     region: shapely.geometry.polygon.Polygon | None = None,
 ) -> list[xr.DataArray]:
+    "Spatially tiles a chip into a set of chiplets."
+
     chip_subsets = []
 
     for i_x_left in range(0, data.sizes["x"], chiplet_spatial_size_pix):
@@ -368,6 +426,8 @@ def split_chip(
 
 
 def get_bbox(data: xr.DataArray) -> shapely.geometry.polygon.Polygon:
+    "Gets the bounding-box of a chip or chiplet's data"
+
     bbox = shapely.Polygon(
         shell=[
             [data.x[0], data.y[0]],
@@ -381,6 +441,8 @@ def get_bbox(data: xr.DataArray) -> shapely.geometry.polygon.Polygon:
 
 
 def read_chip(filename: pathlib.Path, load_data: bool = False) -> xr.DataArray:
+    "Reads a GeoTIFF file from disk"
+
     data = rioxarray.open_rasterio(filename=filename)
 
     if not isinstance(data, xr.DataArray):
@@ -400,6 +462,11 @@ def get_region(
     src_crs: int = 4326,
     dst_crs: int = 3577,
 ) -> shapely.geometry.polygon.Polygon:
+    """
+    Loads a spatial region-of-interest from a GeoJSON file, optionally converts the
+    projection, and formats the region as a `shapely` Polygon.
+    """
+
     region = geojson.loads(region_file.read_text())
 
     (feature,) = region["features"]
@@ -431,6 +498,8 @@ def get_region(
 
 
 def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
+    "Parses the metadata in a set of chip filenames"
+
     chips: dict[Position, dict[int, Chip]] = {}
 
     for filename in filenames:
@@ -445,6 +514,8 @@ def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, C
 
 
 def parse_filename(filename: pathlib.Path) -> Chip:
+    "Parses the metadata in a chip filename"
+
     # example: ga_ls_landcover_class_cyear_2_1-0-0_au_x9y-24_1993-01-01_level4
 
     (*_, xy, date, measurement) = filename.stem.split("_")
@@ -476,6 +547,11 @@ def get_chip_filenames(
     year: str | int | None = None,
     measurement: str | None = None,
 ) -> list[pathlib.Path]:
+    """
+    Gets a list of DEA chip filenames, with optional filters for year and
+    measurement.
+    """
+
     glob = f"{product}*"
 
     if year is not None:
@@ -498,6 +574,10 @@ def remap_data(
     data: npt.NDArray[np.uint8],
     lut: npt.NDArray[np.uint8] | None = None,
 ) -> npt.NDArray[np.uint8]:
+    """
+    Applies a remapping to a data array.
+    """
+
     if lut is None:
         lut = get_remapping_lut()
 
@@ -510,6 +590,8 @@ def remap_data(
 
 
 def get_remapping_lut() -> npt.NDArray[np.uint8]:
+    "Gets an array that acts as a LUT for remapping."
+
     # mapping from the input to output values
     # from Rob's `transforms.py`
     lut_dict = {
