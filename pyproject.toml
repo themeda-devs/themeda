@@ -54,3 +54,14 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 ecofuture = "ecofuture.apps:EcoFuture.main"
 ecofuture_form_chiplets = "ecofuture.preproc.cli:run"
+
+[[tool.mypy.overrides]]
+module = [
+        "geojson",
+        "shapely",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "rioxarray"
+implicit_reexport = true
