@@ -33,6 +33,7 @@ checking. There is scope for parallelisation, but it also only needs to be run o
 import pathlib
 import dataclasses
 import collections
+import argparse
 
 import numpy as np
 import numpy.typing as npt
@@ -76,10 +77,10 @@ def save_chiplets(
     subset_seed: int | None = 254204982,
     overwrite: bool = False,
 ) -> None:
-
     product = "ga_ls_landcover_class_cyear_2"
     measurement = "level4"
 
+    # get the GeoTIFF filenames matching the provided criteria
     filenames = get_filenames(
         chip_dir=chip_dir,
         product=product,
@@ -121,14 +122,11 @@ def render_chiplets(
     remap: bool = True,
     overwrite: bool = False,
 ) -> None:
-
     if remap:
         remap_lut = get_remapping_lut()
 
     for year_chiplets in chiplets.values():
-
         for chiplet in year_chiplets.values():
-
             filename = get_chiplet_filename(chiplet=chiplet)
 
             save_path = chiplet_dir / filename
@@ -137,7 +135,6 @@ def render_chiplets(
                 print(f"File {filename} exists in {chiplet_dir}; skipping")
 
             else:
-
                 # make a copy of the data so we don't retain a reference
                 # to the full data
                 chiplet_data = chiplet.data.copy().values
@@ -168,7 +165,6 @@ def assign_subset_labels(
     n_subsets: int,
     subset_seed: int | None = None,
 ) -> None:
-
     # count the instance within a given subset
     # all years for the same spatial location have the same subset instance number
     subset_instance_counter: collections.Counter[int] = collections.Counter()
@@ -176,7 +172,6 @@ def assign_subset_labels(
     rand = np.random.default_rng(seed=subset_seed)
 
     for year_chiplets in chiplets.values():
-
         subset_num = rand.integers(low=1, high=n_subsets + 1)
 
         subset_instance_counter[subset_num] += 1
@@ -184,17 +179,15 @@ def assign_subset_labels(
         subset_instance_num = subset_instance_counter[subset_num]
 
         for chiplet in year_chiplets.values():
-
             if chiplet.subset_num is not None:
                 pass
-                #raise ValueError("Subset number unexpectedly assigned")
+                # raise ValueError("Subset number unexpectedly assigned")
 
             chiplet.subset_num = subset_num
             chiplet.subset_instance_num = subset_instance_num
 
 
 def get_chiplet_filename(chiplet: Chiplet) -> str:
-
     filename = (
         f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
         + f"{chiplet.subset_num}_{chiplet:instance_num:08d}.npz"
@@ -208,12 +201,10 @@ def form_chiplets(
     chiplet_spatial_size_pix: int,
     region: shapely.geometry.polygon.Polygon,
 ) -> dict[Position, dict[int, Chiplet]]:
-
     chiplets: dict[Position, dict[int, Chiplet]] = {}
 
     # `pos_chips` will contain the entries for each year for a given position
     for pos_chips in chips.values():
-
         # the region test is quite slow, so assume that the geometry is the
         # same across years and just assess it once, using the first entry
         # as representative
@@ -228,18 +219,16 @@ def form_chiplets(
         rep_chip_splits = split_chip(
             data=rep_chip_data,
             chiplet_spatial_size_pix=chiplet_spatial_size_pix,
-            #region=region,
+            # region=region,
         )
 
         # get the validity (whether the chiplet is in the region) of each chiplet
         validity = [
-            True #rep_chip_split.in_region
-            for rep_chip_split in rep_chip_splits
+            True for rep_chip_split in rep_chip_splits  # rep_chip_split.in_region
         ]
 
         # now iterate over the yearly chips at this position
         for chip in pos_chips.values():
-
             chip_data = read_chip(
                 filename=chip.filename,
                 load_data=False,
@@ -250,11 +239,10 @@ def form_chiplets(
                 chiplet_spatial_size_pix=chiplet_spatial_size_pix,
             )
 
-            for (chiplet_validity, potential_chiplet_data) in zip(
+            for chiplet_validity, potential_chiplet_data in zip(
                 validity,
                 potential_chiplets_data,
             ):
-
                 # if we aren't dealing with a valid chiplet, move on
                 if not chiplet_validity:
                     continue
@@ -285,12 +273,10 @@ def split_chip(
     chiplet_spatial_size_pix: int,
     region: shapely.geometry.polygon.Polygon | None = None,
 ) -> list[xr.DataArray]:
-
     chip_subsets = []
 
     for i_x_left in range(0, data.sizes["x"], chiplet_spatial_size_pix):
         for i_y_left in range(0, data.sizes["y"], chiplet_spatial_size_pix):
-
             chip_subset = data.isel(
                 x=range(i_x_left, i_x_left + chiplet_spatial_size_pix),
                 y=range(i_y_left, i_y_left + chiplet_spatial_size_pix),
@@ -309,7 +295,6 @@ def split_chip(
 
 
 def get_bbox(data: xr.DataArray) -> shapely.geometry.polygon.Polygon:
-
     bbox = shapely.Polygon(
         shell=[
             [data.x[0], data.y[0]],
@@ -323,7 +308,6 @@ def get_bbox(data: xr.DataArray) -> shapely.geometry.polygon.Polygon:
 
 
 def read_chip(filename: pathlib.Path, load_data: bool = False) -> xr.DataArray:
-
     data = rioxarray.open_rasterio(filename=filename)
 
     if not isinstance(data, xr.DataArray):
@@ -343,7 +327,6 @@ def get_region(
     src_crs: int = 4326,
     dst_crs: int = 3577,
 ) -> shapely.geometry.polygon.Polygon:
-
     region = geojson.loads(region_file.read_text())
 
     (feature,) = region["features"]
@@ -351,7 +334,6 @@ def get_region(
     (coords,) = feature["geometry"]["coordinates"]
 
     if src_crs != dst_crs:
-
         transformer = pyproj.Transformer.from_crs(
             crs_from=src_crs,
             crs_to=dst_crs,
@@ -375,13 +357,10 @@ def get_region(
     return polygon
 
 
-
 def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
-
     chips: dict[Position, dict[int, Chip]] = {}
 
     for filename in filenames:
-
         chip = parse_filename(filename=filename)
 
         if chip.position not in chips:
@@ -393,7 +372,6 @@ def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, C
 
 
 def parse_filename(filename: pathlib.Path) -> Chip:
-
     # example: ga_ls_landcover_class_cyear_2_1-0-0_au_x9y-24_1993-01-01_level4
 
     (*_, xy, date, measurement) = filename.name.split("_")
@@ -401,8 +379,8 @@ def parse_filename(filename: pathlib.Path) -> Chip:
     if not xy.startswith("x"):
         raise ValueError("Unexpected filename format")
 
-    x = float(xy[1:xy.index("y")])
-    y = float(xy[xy.index("y") + 1:])
+    x = float(xy[1 : xy.index("y")])
+    y = float(xy[xy.index("y") + 1 :])
 
     if not date.count("-") == 2:
         raise ValueError("Unexpected filename format")
@@ -425,7 +403,6 @@ def get_filenames(
     year: str | int | None = None,
     measurement: str | None = None,
 ) -> list[pathlib.Path]:
-
     glob = f"{product}*"
 
     if year is not None:
@@ -448,7 +425,6 @@ def remap_data(
     data: npt.NDArray[np.uint8],
     lut: npt.NDArray[np.uint8] | None = None,
 ) -> npt.NDArray[np.uint8]:
-
     if lut is None:
         lut = get_remapping_lut()
 
@@ -460,9 +436,7 @@ def remap_data(
     return remapped_data
 
 
-
 def get_remapping_lut() -> npt.NDArray[np.uint8]:
-
     # mapping from the input to output values
     # from Rob's `transforms.py`
     lut_dict = {
@@ -530,7 +504,7 @@ def get_remapping_lut() -> npt.NDArray[np.uint8]:
 
     lut = np.ones(104 + 1) * sentinel_val
 
-    for (src_val, dst_val) in lut_dict.items():
+    for src_val, dst_val in lut_dict.items():
         lut[src_val] = dst_val
 
     lut_dt: npt.NDArray[np.uint8] = lut.astype(np.uint8)
@@ -538,3 +512,102 @@ def get_remapping_lut() -> npt.NDArray[np.uint8]:
     return lut_dt
 
 
+def run() -> None:
+
+    # using `argparse` rather than `typer` because other project dependencies
+    # require a very old version of `typer` that is missing functionality
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Convert the data from a DEA dataset query into a set of 'chiplets' - "
+            + "files that contain the image from a given year and asset over a "
+            + "small spatial window"
+        ),
+    )
+
+    parser.add_argument(
+        "-chip_dir",
+        required=True,
+        type=pathlib.Path,
+        help="Directory containing the result from `dea_data_loader download`",
+    )
+
+    parser.add_argument(
+        "-chiplet_dir",
+        required=True,
+        type=pathlib.Path,
+        help="Directory to write the chiplet files",
+    )
+
+    parser.add_argument(
+        "-region_file",
+        required=True,
+        type=pathlib.Path,
+        help="Path to the GeoJSON file that specifies the region-of-interest",
+    )
+
+    parser.add_argument(
+        "-no_remapping",
+        required=False,
+        default=False,
+        action="store_true",
+        help=(
+            "The labels for each file are remapped to our convention by default; use"
+            + "this flag to disable"
+        ),
+    )
+
+    parser.add_argument(
+        "-n_spatial_subsets",
+        required=False,
+        type=int,
+        default=5,
+        help=(
+            "Number of spatial subsets to use; each chiplet is randomly assigned a "
+            + "subset from 1 to `n_spatial_subsets`"
+        ),
+    )
+
+    parser.add_argument(
+        "-random_seed",
+        required=False,
+        default=False,
+        type=int,
+        help="Seed for the random assignment of chiplets to subsets",
+    )
+
+    parser.add_argument(
+        "-chiplet_spatial_size_pix",
+        required=False,
+        type=int,
+        default=160,
+        help=(
+            "Spatial extent of each side of each square chiplet. Must divide evenly "
+            + "with the chip size"
+        ),
+    )
+
+    parser.add_argument(
+        "-overwrite",
+        required=False,
+        default=False,
+        action="store_true",
+        help="Whether it is OK to overwrite if the chiplet file already exists",
+    )
+
+    args = parser.parse_args()
+
+    save_chiplets(
+        chip_dir=args.chip_dir,
+        chiplet_dir=args.chiplet_dir,
+        region_file=args.region_file,
+        chiplet_spatial_size_pix=args.chiplet_spatial_size_pix,
+        remap=not args.no_remapping,
+        n_subsets=args.n_spatial_subsets,
+        subset_seed=args.random_seed,
+        overwrite=args.overwrite,
+    )
+
+
+if __name__ == "__main__":
+    run()
