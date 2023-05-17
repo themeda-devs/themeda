@@ -1,5 +1,38 @@
+"""
+Pre-processing the DEA database files into an analysis-ready format.
+
+From the DEA database, we have a series of GeoTIFF files that each encode the data
+for a given 'measurement' over a particular spatial region for a particular year. The
+data for a particular spatial region for a particular year is called a 'chip'.
+
+However, this represention is not ideal for the purposes of analysis. The chips are
+quite large, with each being 4000x4000 pixels in size. Some of them are also not within
+the defined savanna region. The GeoTIFF format also includes metadata that is ancillary
+to the current analysis purposes. The data labelling conventions are also not desirable
+for our analyses. Finally, we would like to randomly assign spatial regions to subsets
+for the purposes of cross-validation.
+
+The code in this file aims to resolve the above limitations by pre-processing the set
+of GeoTIFF files and creating a new representation more amenable to our analyses.
+
+The basic workflow is:
+    1. Find the set of GeoTIFF files of interest.
+    2. Create a representation based on 'chiplets', where a chiplet is a small spatial
+    region (default is 160x160 pixels) that is within the defined savanna region and
+    contains the data for a particular year.
+    3. Identify each chiplet with the same spatial location as belonging to a random
+    subset of all chiplets, based on a default of 5 subsets.
+    4. Remap the labelled data within each chiplet.
+    5. Write each chiplet to a separate `npz` file.
+
+Note that the execution is pretty slow, particularly due to the savanna region bounds
+checking. There is scope for parallelisation, but it also only needs to be run once-ish.
+
+"""
+
 import pathlib
 import dataclasses
+import collections
 
 import numpy as np
 import numpy.typing as npt
@@ -11,22 +44,26 @@ import geojson
 import pyproj
 import shapely
 
+
 @dataclasses.dataclass(frozen=True)
 class Position:
     x: float
     y: float
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Chip:
     filename: pathlib.Path
     year: int
     position: Position
+    measurement: str
 
 
-@dataclasses.dataclass(frozen=True)
+@dataclasses.dataclass
 class Chiplet(Chip):
     data: xr.DataArray
+    subset_num: int | None = None
+    subset_instance_num: int | None = None
 
 
 def save_chiplets(
@@ -34,6 +71,9 @@ def save_chiplets(
     chiplet_dir: pathlib.Path,
     region_file: pathlib.Path,
     chiplet_spatial_size_pix: int = 160,
+    remap: bool = True,
+    n_subsets: int = 5,
+    subset_seed: int | None = 254204982,
     overwrite: bool = False,
 ) -> None:
 
@@ -59,13 +99,108 @@ def save_chiplets(
         region=region,
     )
 
+    # give each chiplet a subset (operates in-place)
+    assign_subset_labels(
+        chiplets=chiplets,
+        n_subsets=n_subsets,
+        subset_seed=subset_seed,
+    )
+
+    # save the chiplets to disk
+    render_chiplets(
+        chiplets=chiplets,
+        chiplet_dir=chiplet_dir,
+        remap=remap,
+        overwrite=overwrite,
+    )
+
 
 def render_chiplets(
     chiplets: dict[Position, dict[int, Chiplet]],
     chiplet_dir: pathlib.Path,
-    fold_seed: int | None = None,
+    remap: bool = True,
+    overwrite: bool = False,
 ) -> None:
-    pass
+
+    if remap:
+        remap_lut = get_remapping_lut()
+
+    for year_chiplets in chiplets.values():
+
+        for chiplet in year_chiplets.values():
+
+            filename = get_chiplet_filename(chiplet=chiplet)
+
+            save_path = chiplet_dir / filename
+
+            if save_path.exists() and not overwrite:
+                print(f"File {filename} exists in {chiplet_dir}; skipping")
+
+            else:
+
+                # make a copy of the data so we don't retain a reference
+                # to the full data
+                chiplet_data = chiplet.data.copy().values
+
+                if remap:
+                    chiplet_data = remap_data(
+                        data=chiplet_data,
+                        lut=remap_lut,
+                    )
+
+                # finally, save
+                # probably excessive metadata, but best to save rather than
+                # not save and miss it later
+                np.savez(
+                    file=save_path,
+                    data=chiplet_data,
+                    position=np.array([chiplet.position.x, chiplet.position.y]),
+                    subset_num=np.array([chiplet.subset_num]),
+                    subset_instance_num=np.array([chiplet.subset_instance_num]),
+                    raw_filename=np.array([chiplet.filename], dtype=str),
+                    year=np.array([chiplet.year]),
+                    measurement=np.array([chiplet.measurement], dtype=str),
+                )
+
+
+def assign_subset_labels(
+    chiplets: dict[Position, dict[int, Chiplet]],
+    n_subsets: int,
+    subset_seed: int | None = None,
+) -> None:
+
+    # count the instance within a given subset
+    # all years for the same spatial location have the same subset instance number
+    subset_instance_counter: collections.Counter[int] = collections.Counter()
+
+    rand = np.random.default_rng(seed=subset_seed)
+
+    for year_chiplets in chiplets.values():
+
+        subset_num = rand.integers(low=1, high=n_subsets + 1)
+
+        subset_instance_counter[subset_num] += 1
+
+        subset_instance_num = subset_instance_counter[subset_num]
+
+        for chiplet in year_chiplets.values():
+
+            if chiplet.subset_num is not None:
+                pass
+                #raise ValueError("Subset number unexpectedly assigned")
+
+            chiplet.subset_num = subset_num
+            chiplet.subset_instance_num = subset_instance_num
+
+
+def get_chiplet_filename(chiplet: Chiplet) -> str:
+
+    filename = (
+        f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
+        + f"{chiplet.subset_num}_{chiplet:instance_num:08d}.npz"
+    )
+
+    return filename
 
 
 def form_chiplets(
@@ -93,16 +228,14 @@ def form_chiplets(
         rep_chip_splits = split_chip(
             data=rep_chip_data,
             chiplet_spatial_size_pix=chiplet_spatial_size_pix,
-            region=region,
+            #region=region,
         )
 
         # get the validity (whether the chiplet is in the region) of each chiplet
         validity = [
-            rep_chip_split.in_region
+            True #rep_chip_split.in_region
             for rep_chip_split in rep_chip_splits
         ]
-
-        n_valid_chiplets = sum(validity)
 
         # now iterate over the yearly chips at this position
         for chip in pos_chips.values():
@@ -136,6 +269,7 @@ def form_chiplets(
                     year=chip.year,
                     position=chiplet_position,
                     data=potential_chiplet_data,
+                    measurement=chip.measurement,
                 )
 
                 if chiplet_position not in chiplets:
@@ -279,6 +413,7 @@ def parse_filename(filename: pathlib.Path) -> Chip:
         filename=filename,
         year=int(year),
         position=Position(x=x, y=y),
+        measurement=measurement,
     )
 
     return chip
