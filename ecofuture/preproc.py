@@ -83,6 +83,7 @@ class ChipletFilenameInfo:
 @dataclasses.dataclass
 class ChipletFile(ChipletFilenameInfo):
     data: npt.NDArray[np.uint8]
+    position: Position
 
 
 def load_chiplets(
@@ -112,7 +113,9 @@ def load_chiplets(
     A generator that yields chiplet data and metadata.
     """
 
-    potential_filenames = chiplet_dir.glob("*.npz")
+    potential_filenames: typing.Generator[pathlib.Path, None, None] | list[
+        pathlib.Path
+    ] = chiplet_dir.glob("*.npz")
 
     if sorted_filenames:
         # this makes it into a list, which may require lots of memory
@@ -135,6 +138,10 @@ def load_chiplets(
             subset_num=info["subset_num"].item(),
             subset_instance_num=info["subset_instance_num"].item(),
             data=info["data"],
+            position=Position(
+                x=info["position"][0],
+                y=info["position"][1],
+            ),
         )
 
         yield chiplet
@@ -347,14 +354,28 @@ def form_chiplets(
             load_data=False,
         )
 
+        # given the slowness of the region test, we can avoid doing it for each
+        # chiplet if we know that the bounding box of the chip is within the region
+        all_rep_chip_within_region = is_bbox_within_region(
+            bbox=get_bbox(data=rep_chip), region=region
+        )
+
+        if all_rep_chip_within_region:
+            region_arg = None
+        else:
+            region_arg = region
+
         rep_chip_splits = split_chip(
             data=rep_chip_data,
             chiplet_spatial_size_pix=chiplet_spatial_size_pix,
-            region=region,
+            region=region_arg,
         )
 
-        # get the validity (whether the chiplet is in the region) of each chiplet
-        validity = [rep_chip_split.in_region for rep_chip_split in rep_chip_splits]
+        if all_rep_chip_within_region:
+            validity = [True for _ in rep_chip_splits]
+        else:
+            # get the validity (whether the chiplet is in the region) of each chiplet
+            validity = [rep_chip_split.in_region for rep_chip_split in rep_chip_splits]
 
         # now iterate over the yearly chips at this position
         for chip in pos_chips.values():
@@ -418,11 +439,21 @@ def split_chip(
 
             if region is not None:
                 bbox = get_bbox(data=chip_subset)
-                chip_subset.attrs["in_region"] = bbox.within(other=region)
+                chip_subset.attrs["in_region"] = is_bbox_within_region(
+                    bbox=bbox, region=region
+                )
 
             chip_subsets.append(chip_subset)
 
     return chip_subsets
+
+
+def is_bbox_within_region(
+    bbox: shapely.geometry.polygon.Polygon,
+    region: shapely.geometry.polygon.Polygon,
+) -> bool:
+    is_within: bool = bbox.within(other=region)
+    return is_within
 
 
 def get_bbox(data: xr.DataArray) -> shapely.geometry.polygon.Polygon:

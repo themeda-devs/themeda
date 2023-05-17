@@ -90,3 +90,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "rioxarray"
 implicit_reexport = true
+
+[tool.black]
+line-length = 88
+preview = false
+skip-source-first-line = false
+skip-string-normalization = false
+skip-magic-trailing-comma = false
