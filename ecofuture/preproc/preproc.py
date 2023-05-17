@@ -2,6 +2,7 @@ import pathlib
 import dataclasses
 
 import numpy as np
+import numpy.typing as npt
 
 import xarray as xr
 import rioxarray
@@ -9,6 +10,23 @@ import rioxarray
 import geojson
 import pyproj
 import shapely
+
+@dataclasses.dataclass(frozen=True)
+class Position:
+    x: float
+    y: float
+
+
+@dataclasses.dataclass(frozen=True)
+class Chip:
+    filename: pathlib.Path
+    year: int
+    position: Position
+
+
+@dataclasses.dataclass(frozen=True)
+class Chiplet(Chip):
+    data: xr.DataArray
 
 
 def save_chiplets(
@@ -28,17 +46,26 @@ def save_chiplets(
         measurement=measurement,
     )
 
+    # get the info on each chip
     chips = parse_filenames(filenames=filenames)
 
     # get the polygon capturing the spatial region-of-interest
     region = get_region(region_file=region_file)
 
+    # get the info on each chiplet
     chiplets = form_chiplets(
         chips=chips,
         chiplet_spatial_size_pix=chiplet_spatial_size_pix,
         region=region,
     )
 
+
+def render_chiplets(
+    chiplets: dict[Position, dict[int, Chiplet]],
+    chiplet_dir: pathlib.Path,
+    fold_seed: int | None = None,
+) -> None:
+    pass
 
 
 def form_chiplets(
@@ -177,8 +204,6 @@ def read_chip(filename: pathlib.Path, load_data: bool = False) -> xr.DataArray:
     return data
 
 
-
-
 def get_region(
     region_file: pathlib.Path,
     src_crs: int = 4326,
@@ -210,25 +235,11 @@ def get_region(
 
     polygon = shapely.Polygon(shell=coords)
 
+    # might speed up calls that use the geometry
+    shapely.prepare(geometry=polygon)
+
     return polygon
 
-
-@dataclasses.dataclass(frozen=True)
-class Position:
-    x: float
-    y: float
-
-
-@dataclasses.dataclass(frozen=True)
-class Chip:
-    filename: pathlib.Path
-    year: int
-    position: Position
-
-
-@dataclasses.dataclass(frozen=True)
-class Chiplet(Chip):
-    data: xr.DataArray
 
 
 def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
@@ -296,3 +307,99 @@ def get_filenames(
         raise ValueError("No matching filenames found")
 
     return filenames
+
+
+def remap_data(
+    data: npt.NDArray[np.uint8],
+    lut: npt.NDArray[np.uint8] | None = None,
+) -> npt.NDArray[np.uint8]:
+
+    if lut is None:
+        lut = get_remapping_lut()
+
+    remapped_data: npt.NDArray[np.uint8] = lut[data]
+
+    if np.any(remapped_data > 104):
+        raise ValueError("Data remapping error")
+
+    return remapped_data
+
+
+
+def get_remapping_lut() -> npt.NDArray[np.uint8]:
+
+    # mapping from the input to output values
+    # from Rob's `transforms.py`
+    lut_dict = {
+        0: 0,
+        14: 1,
+        15: 2,
+        16: 3,
+        17: 4,
+        18: 4,
+        27: 5,
+        28: 6,
+        29: 7,
+        30: 8,
+        31: 8,
+        32: 9,
+        33: 10,
+        34: 11,
+        35: 12,
+        36: 12,
+        63: 13,
+        64: 13,
+        65: 13,
+        66: 14,
+        67: 14,
+        68: 14,
+        69: 15,
+        70: 15,
+        71: 15,
+        72: 15,
+        73: 15,
+        74: 15,
+        75: 15,
+        76: 15,
+        77: 15,
+        78: 16,
+        79: 16,
+        80: 16,
+        81: 16,
+        82: 16,
+        83: 16,
+        84: 16,
+        85: 16,
+        86: 16,
+        87: 16,
+        88: 16,
+        89: 16,
+        90: 16,
+        91: 16,
+        92: 16,
+        93: 17,
+        94: 18,
+        95: 12,
+        96: 12,
+        97: 18,
+        98: 19,
+        99: 19,
+        100: 19,
+        101: 19,
+        102: 19,
+        103: 20,
+        104: 20,
+    }
+
+    sentinel_val = 111
+
+    lut = np.ones(104 + 1) * sentinel_val
+
+    for (src_val, dst_val) in lut_dict.items():
+        lut[src_val] = dst_val
+
+    lut_dt: npt.NDArray[np.uint8] = lut.astype(np.uint8)
+
+    return lut_dt
+
+

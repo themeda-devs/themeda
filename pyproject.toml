@@ -55,6 +55,9 @@ build-backend = "poetry.core.masonry.api"
 ecofuture = "ecofuture.apps:EcoFuture.main"
 ecofuture_form_chiplets = "ecofuture.preproc.cli:run"
 
+[tool.mypy]
+plugins = "numpy.typing.mypy_plugin"
+
 [[tool.mypy.overrides]]
 module = [
         "geojson",
