@@ -27,6 +27,7 @@ The basic workflow is:
 
 Note that the execution is pretty slow, particularly due to the savanna region bounds
 checking. There is scope for parallelisation, but it also only needs to be run once-ish.
+It also occupies a fair bit of RAM.
 
 """
 
@@ -34,6 +35,7 @@ import pathlib
 import dataclasses
 import collections
 import argparse
+import typing
 
 import numpy as np
 import numpy.typing as npt
@@ -66,6 +68,77 @@ class Chiplet(Chip):
     subset_num: int | None = None
     subset_instance_num: int | None = None
 
+@dataclasses.dataclass
+class ChipletFilenameInfo:
+    measurement: str
+    year: int
+    subset_num: int
+    subset_instance_num: int
+
+@dataclasses.dataclass
+class ChipletFile(ChipletFilenameInfo):
+    data: npt.NDArray[np.uint8]
+
+
+def load_chiplets(
+    chiplet_dir: pathlib.Path,
+    years: collections.abc.Container[int] | None = None,
+    subset_nums: collections.abc.Container[int] | None = None,
+    sorted_filenames: bool = False,
+) -> typing.Iterator[ChipletFile]:
+
+    potential_filenames = chiplet_dir.glob("*.npz")
+
+    if sorted_filenames:
+        # this makes it into a list, which may require lots of memory
+        potential_filenames = sorted(potential_filenames)
+
+    for potential_filename in potential_filenames:
+
+        filename_info = parse_chiplet_filename(filename=potential_filename)
+
+        if (
+            (years is not None and filename_info.year not in years)
+            or (subset_nums is not None and filename_info.subset_num not in subset_nums)
+        ):
+            continue
+
+        info = np.load(file=potential_filename)
+
+        chiplet = ChipletFile(
+            measurement=info["measurement"].item(),
+            year=info["year"].item(),
+            subset_num=info["subset_num"].item(),
+            subset_instance_num=info["subset_instance_num"].item(),
+            data=info["data"],
+        )
+
+        yield chiplet
+
+
+def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
+
+    items = filename.stem.split("_")
+
+    (study, form, measurement, year, subset, subset_num, subset_instance_num) = items
+
+    if (
+        not filename.stem.startswith("ecofuture_chiplet")
+        or study != "ecofuture"
+        or form != "chiplet"
+        or subset != "subset"
+    ):
+        raise ValueError("Unknown chiplet file")
+
+    chiplet_filename_info = ChipletFilenameInfo(
+        measurement=measurement,
+        year=int(year),
+        subset_num=int(subset_num),
+        subset_instance_num=int(subset_instance_num),
+    )
+
+    return chiplet_filename_info
+
 
 def save_chiplets(
     chip_dir: pathlib.Path,
@@ -81,7 +154,7 @@ def save_chiplets(
     measurement = "level4"
 
     # get the GeoTIFF filenames matching the provided criteria
-    filenames = get_filenames(
+    filenames = get_chip_filenames(
         chip_dir=chip_dir,
         product=product,
         measurement=measurement,
@@ -190,7 +263,7 @@ def assign_subset_labels(
 def get_chiplet_filename(chiplet: Chiplet) -> str:
     filename = (
         f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
-        + f"{chiplet.subset_num}_{chiplet:instance_num:08d}.npz"
+        + f"{chiplet.subset_num}_{chiplet.subset_instance_num:08d}.npz"
     )
 
     return filename
@@ -374,7 +447,7 @@ def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, C
 def parse_filename(filename: pathlib.Path) -> Chip:
     # example: ga_ls_landcover_class_cyear_2_1-0-0_au_x9y-24_1993-01-01_level4
 
-    (*_, xy, date, measurement) = filename.name.split("_")
+    (*_, xy, date, measurement) = filename.stem.split("_")
 
     if not xy.startswith("x"):
         raise ValueError("Unexpected filename format")
@@ -397,7 +470,7 @@ def parse_filename(filename: pathlib.Path) -> Chip:
     return chip
 
 
-def get_filenames(
+def get_chip_filenames(
     chip_dir: pathlib.Path,
     product: str = "ga_ls_landcover_class_cyear_2",
     year: str | int | None = None,
