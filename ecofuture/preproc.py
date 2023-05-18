@@ -135,9 +135,6 @@ def load_chiplets(
         if subset_nums is None:
             subset_nums = avail_subset_nums
 
-    # years = typing.cast(list[int], years)
-    # subset_nums = typing.cast(list[int], subset_nums)
-
     for year in years:
         for subset_num in subset_nums:
 
