@@ -39,6 +39,7 @@ import dataclasses
 import collections
 import argparse
 import typing
+import zipfile
 
 import numpy as np
 import numpy.typing as npt
@@ -59,10 +60,10 @@ class Position:
 
 @dataclasses.dataclass
 class Chip:
-    filename: pathlib.Path
     year: int
-    position: Position
     measurement: str
+    filename: pathlib.Path
+    position: Position
 
 
 @dataclasses.dataclass
@@ -86,11 +87,18 @@ class ChipletFile(ChipletFilenameInfo):
     position: Position
 
 
+@dataclasses.dataclass
+class ChipletFilename:
+    container_path: pathlib.Path
+    filename: pathlib.Path
+
+
 def load_chiplets(
     chiplet_dir: pathlib.Path,
-    years: collections.abc.Container[int] | None = None,
-    subset_nums: collections.abc.Container[int] | None = None,
-    sorted_filenames: bool = False,
+    years: list[int] | None = None,
+    subset_nums: list[int] | None = None,
+    subset_instance_nums: list[int] | None = None,
+    measurement: str = "level4",
     just_filenames: bool = False,
 ) -> typing.Iterator[ChipletFile] | typing.Iterator[ChipletFilenameInfo]:
     """
@@ -116,43 +124,110 @@ def load_chiplets(
     A generator that yields chiplet data and metadata.
     """
 
-    potential_filenames: typing.Generator[pathlib.Path, None, None] | list[
-        pathlib.Path
-    ] = chiplet_dir.glob("*.npz")
+    if years is None or subset_nums is None:
+        (avail_years, avail_subset_nums) = get_zip_info(
+            chiplet_dir=chiplet_dir, measurement=measurement
+        )
 
-    if sorted_filenames:
-        # this makes it into a list, which may require lots of memory
-        potential_filenames = sorted(potential_filenames)
+        if years is None:
+            years = avail_years
 
-    for potential_filename in potential_filenames:
+        if subset_nums is None:
+            subset_nums = avail_subset_nums
 
-        filename_info = parse_chiplet_filename(filename=potential_filename)
+    # years = typing.cast(list[int], years)
+    # subset_nums = typing.cast(list[int], subset_nums)
 
-        if (years is not None and filename_info.year not in years) or (
-            subset_nums is not None and filename_info.subset_num not in subset_nums
-        ):
-            continue
+    for year in years:
+        for subset_num in subset_nums:
 
-        if just_filenames:
-            yield filename_info
-
-        else:
-
-            info = np.load(file=potential_filename)
-
-            chiplet = ChipletFile(
-                measurement=info["measurement"].item(),
-                year=info["year"].item(),
-                subset_num=info["subset_num"].item(),
-                subset_instance_num=info["subset_instance_num"].item(),
-                data=info["data"],
-                position=Position(
-                    x=info["position"][0],
-                    y=info["position"][1],
-                ),
+            zip_path = (
+                chiplet_dir
+                / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
             )
 
-            yield chiplet
+            with zipfile.ZipFile(zip_path, mode="r") as zip_handle:
+
+                files_in_zip = zip_handle.namelist()
+
+                if subset_instance_nums is None:
+                    subset_instance_nums = list(range(1, len(files_in_zip) + 1))
+
+                for subset_instance_num in subset_instance_nums:
+
+                    chiplet_meta = Chiplet(
+                        year=year,
+                        measurement=measurement,
+                        subset_num=subset_num,
+                        subset_instance_num=subset_instance_num,
+                        position=Position(x=0.0, y=0.0),
+                        data=xr.DataArray(),
+                        filename=pathlib.Path(""),
+                    )
+
+                    filename = get_chiplet_filename(chiplet=chiplet_meta)
+
+                    filename_info = parse_chiplet_filename(filename=filename.filename)
+
+                    if just_filenames:
+                        yield filename_info
+
+                    else:
+                        with zip_handle.open(
+                            str(filename.filename), mode="r"
+                        ) as file_handle:
+
+                            info = np.load(file=file_handle)
+
+                            chiplet = ChipletFile(
+                                measurement=info["measurement"].item(),
+                                year=info["year"].item(),
+                                subset_num=info["subset_num"].item(),
+                                subset_instance_num=info["subset_instance_num"].item(),
+                                data=info["data"],
+                                position=Position(
+                                    x=info["position"][0],
+                                    y=info["position"][1],
+                                ),
+                            )
+
+                            yield chiplet
+
+
+def get_zip_info(
+    chiplet_dir: pathlib.Path,
+    measurement: str = "level4",
+) -> tuple[list[int], list[int]]:
+
+    available_zip_paths = sorted(chiplet_dir.glob("ecofuture_chiplet*.zip"))
+
+    years = []
+    subset_nums = []
+
+    for potential_zip_path in available_zip_paths:
+
+        (
+            front,
+            chiplet_str,
+            meas,
+            year,
+            subset_str,
+            subset_num,
+        ) = potential_zip_path.stem.split("_")
+
+        if meas != measurement:
+            continue
+
+        if front != "ecofuture" or chiplet_str != "chiplet" or subset_str != "subset":
+            raise ValueError("Unexpected zip file name")
+
+        years.append(int(year))
+        subset_nums.append(int(subset_num))
+
+    years = sorted(set(years))
+    subset_nums = sorted(set(subset_nums))
+
+    return (years, subset_nums)
 
 
 def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
@@ -268,35 +343,45 @@ def render_chiplets(
         for chiplet in year_chiplets.values():
             filename = get_chiplet_filename(chiplet=chiplet)
 
-            save_path = chiplet_dir / filename
+            # outer zip file
+            container_path = chiplet_dir / filename.container_path
 
-            if save_path.exists() and not overwrite:
-                print(f"File {filename} exists in {chiplet_dir}; skipping")
+            with zipfile.ZipFile(container_path, mode="a") as zip_file:
 
-            else:
-                # make a copy of the data so we don't retain a reference
-                # to the full data
-                chiplet_data = chiplet.data.copy().values
+                save_path = str(filename.filename)
 
-                if remap:
-                    chiplet_data = remap_data(
-                        data=chiplet_data,
-                        lut=remap_lut,
+                if save_path in zip_file.namelist() and not overwrite:
+                    print(
+                        f"File {filename.filename} exists in "
+                        + "{filename.container_path}; skipping"
                     )
 
-                # finally, save
-                # probably excessive metadata, but best to save rather than
-                # not save and miss it later
-                np.savez(
-                    file=save_path,
-                    data=chiplet_data,
-                    position=np.array([chiplet.position.x, chiplet.position.y]),
-                    subset_num=np.array([chiplet.subset_num]),
-                    subset_instance_num=np.array([chiplet.subset_instance_num]),
-                    raw_filename=np.array([chiplet.filename], dtype=str),
-                    year=np.array([chiplet.year]),
-                    measurement=np.array([chiplet.measurement], dtype=str),
-                )
+                else:
+                    # make a copy of the data so we don't retain a reference
+                    # to the full data
+                    chiplet_data = chiplet.data.copy().values
+
+                    if remap:
+                        chiplet_data = remap_data(
+                            data=chiplet_data,
+                            lut=remap_lut,
+                        )
+
+                    with zip_file.open(save_path, mode="w") as zip_file_handle:
+
+                        # finally, save
+                        # probably excessive metadata, but best to save rather than
+                        # not save and miss it later
+                        np.savez(
+                            file=zip_file_handle,
+                            data=chiplet_data,
+                            position=np.array([chiplet.position.x, chiplet.position.y]),
+                            subset_num=np.array([chiplet.subset_num]),
+                            subset_instance_num=np.array([chiplet.subset_instance_num]),
+                            raw_filename=np.array([chiplet.filename], dtype=str),
+                            year=np.array([chiplet.year]),
+                            measurement=np.array([chiplet.measurement], dtype=str),
+                        )
 
 
 def assign_subset_labels(
@@ -328,14 +413,22 @@ def assign_subset_labels(
             chiplet.subset_instance_num = subset_instance_num
 
 
-def get_chiplet_filename(chiplet: Chiplet) -> str:
+def get_chiplet_filename(chiplet: Chiplet) -> ChipletFilename:
     "Formats a chiplet filename from its metadata"
-    filename = (
+
+    # the outer zip file
+    container_path = pathlib.Path(
+        f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
+        + f"{chiplet.subset_num}.zip"
+    )
+
+    # the path *within* the zip file
+    filename = pathlib.Path(
         f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
         + f"{chiplet.subset_num}_{chiplet.subset_instance_num:08d}.npz"
     )
 
-    return filename
+    return ChipletFilename(container_path=container_path, filename=filename)
 
 
 def form_chiplets(
@@ -365,7 +458,7 @@ def form_chiplets(
         # given the slowness of the region test, we can avoid doing it for each
         # chiplet if we know that the bounding box of the chip is within the region
         all_rep_chip_within_region = is_bbox_within_region(
-            bbox=get_bbox(data=rep_chip), region=region
+            bbox=get_bbox(data=rep_chip_data), region=region
         )
 
         if all_rep_chip_within_region:
