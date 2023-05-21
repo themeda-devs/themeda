@@ -75,6 +75,7 @@ class Chiplet(Chip):
 
 @dataclasses.dataclass
 class ChipletFilenameInfo:
+    filename: pathlib.Path
     measurement: str
     year: int
     subset_num: int
@@ -112,18 +113,22 @@ def load_chiplets(
         A collection of years to include; default is to include all years.
     subset_nums:
         A collection of subsets to include; default is to include all subsets.
-    sorted_filenames:
-        Whether to sort the matching filenames prior to yielding. If `False` (the
-        default), they will be in arbitrary order. However, setting `True` will load
-        all the filenames into memory.
+    subset_instance_nums:
+        A collection of subset instance numbers to include; default is to include all
+        subset instance numbers. Note that these are not allowed to vary across subset
+        numbers.
+    measurement:
+        The measurement name recorded in the files.
     just_filenames:
         If `True`, only return the matching filename info rather than the data.
 
     Returns
     -------
-    A generator that yields chiplet data and metadata.
+    A generator that yields chiplet data and metadata or filenames.
     """
 
+    # if the years or subset numbers haven't been specified, then parse the
+    # available zip files for the years and subset numbers that are present
     if years is None or subset_nums is None:
         (avail_years, avail_subset_nums) = get_zip_info(
             chiplet_dir=chiplet_dir, measurement=measurement
@@ -138,45 +143,44 @@ def load_chiplets(
     for year in years:
         for subset_num in subset_nums:
 
-            zip_path = (
-                chiplet_dir
-                / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
+            zip_path = get_zip_path(
+                chiplet_dir=chiplet_dir,
+                year=year,
+                subset_num=subset_num,
             )
 
             with zipfile.ZipFile(zip_path, mode="r") as zip_handle:
 
-                files_in_zip = zip_handle.namelist()
+                chiplets_in_zip = [
+                    parse_chiplet_filename(filename=pathlib.Path(filename))
+                    for filename in zip_handle.namelist()
+                ]
 
                 if subset_instance_nums is None:
-                    subset_instance_nums = list(range(1, len(files_in_zip) + 1))
+                    curr_subset_instance_nums = list(range(1, len(chiplets_in_zip) + 1))
+                else:
+                    curr_subset_instance_nums = subset_instance_nums
 
-                for subset_instance_num in subset_instance_nums:
+                for subset_instance_num in curr_subset_instance_nums:
 
-                    chiplet_meta = Chiplet(
-                        year=year,
-                        measurement=measurement,
-                        subset_num=subset_num,
-                        subset_instance_num=subset_instance_num,
-                        position=Position(x=0.0, y=0.0),
-                        data=xr.DataArray(),
-                        filename=pathlib.Path(""),
-                    )
-
-                    filename = get_chiplet_filename(chiplet=chiplet_meta)
-
-                    filename_info = parse_chiplet_filename(filename=filename.filename)
+                    (curr_chiplet_info,) = [
+                        chiplet_info
+                        for chiplet_info in chiplets_in_zip
+                        if chiplet_info.subset_instance_num == subset_instance_num
+                    ]
 
                     if just_filenames:
-                        yield filename_info
+                        yield curr_chiplet_info
 
                     else:
                         with zip_handle.open(
-                            str(filename.filename), mode="r"
+                            str(curr_chiplet_info.filename), mode="r"
                         ) as file_handle:
 
                             info = np.load(file=file_handle)
 
                             chiplet = ChipletFile(
+                                filename=curr_chiplet_info.filename,
                                 measurement=info["measurement"].item(),
                                 year=info["year"].item(),
                                 subset_num=info["subset_num"].item(),
@@ -191,10 +195,30 @@ def load_chiplets(
                             yield chiplet
 
 
+def get_zip_path(
+    chiplet_dir: pathlib.Path,
+    year: int,
+    subset_num: int,
+    measurement: str = "level4",
+) -> pathlib.Path:
+    "Get the path on disk to a particular zip file"
+
+    zip_path = (
+        chiplet_dir
+        / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
+    )
+
+    return zip_path
+
+
 def get_zip_info(
     chiplet_dir: pathlib.Path,
     measurement: str = "level4",
 ) -> tuple[list[int], list[int]]:
+    """
+    Glob a directory for zip files and return the years and subset numbers that
+    are contained.
+    """
 
     available_zip_paths = sorted(chiplet_dir.glob("ecofuture_chiplet*.zip"))
 
@@ -243,6 +267,7 @@ def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
         raise ValueError("Unknown chiplet file")
 
     chiplet_filename_info = ChipletFilenameInfo(
+        filename=filename,
         measurement=measurement,
         year=int(year),
         subset_num=int(subset_num),
@@ -297,7 +322,7 @@ def save_chiplets(
     )
 
     # get the info on each chip
-    chips = parse_filenames(filenames=filenames)
+    chips = parse_chip_filenames(filenames=filenames)
 
     # get the polygon capturing the spatial region-of-interest
     region = get_region(region_file=region_file)
@@ -402,10 +427,6 @@ def assign_subset_labels(
         subset_instance_num = subset_instance_counter[subset_num]
 
         for chiplet in year_chiplets.values():
-            if chiplet.subset_num is not None:
-                pass
-                # raise ValueError("Subset number unexpectedly assigned")
-
             chiplet.subset_num = subset_num
             chiplet.subset_instance_num = subset_instance_num
 
@@ -626,13 +647,13 @@ def get_region(
     return polygon
 
 
-def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
+def parse_chip_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
     "Parses the metadata in a set of chip filenames"
 
     chips: dict[Position, dict[int, Chip]] = {}
 
     for filename in filenames:
-        chip = parse_filename(filename=filename)
+        chip = parse_chip_filename(filename=filename)
 
         if chip.position not in chips:
             chips[chip.position] = {}
@@ -642,7 +663,7 @@ def parse_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, C
     return chips
 
 
-def parse_filename(filename: pathlib.Path) -> Chip:
+def parse_chip_filename(filename: pathlib.Path) -> Chip:
     "Parses the metadata in a chip filename"
 
     # example: ga_ls_landcover_class_cyear_2_1-0-0_au_x9y-24_1993-01-01_level4
