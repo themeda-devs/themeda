@@ -204,8 +204,7 @@ def get_zip_path(
     "Get the path on disk to a particular zip file"
 
     zip_path = (
-        chiplet_dir
-        / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
+        chiplet_dir / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
     )
 
     return zip_path
@@ -647,7 +646,9 @@ def get_region(
     return polygon
 
 
-def parse_chip_filenames(filenames: list[pathlib.Path]) -> dict[Position, dict[int, Chip]]:
+def parse_chip_filenames(
+    filenames: list[pathlib.Path],
+) -> dict[Position, dict[int, Chip]]:
     "Parses the metadata in a set of chip filenames"
 
     chips: dict[Position, dict[int, Chip]] = {}
