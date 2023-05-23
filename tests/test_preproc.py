@@ -150,7 +150,7 @@ def test_against_manual(chip_dir, chiplet_dir, region_file):
 
     chip_size = chip.sizes["x"]
 
-    n_chiplets_per_dim = chip_size / chiplet_size
+    n_chiplets_per_dim = int(chip_size / chiplet_size)
 
     n_rand = 10
 

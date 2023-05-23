@@ -413,6 +413,9 @@ def render_chiplets(
 
                     filename = get_chiplet_filename(chiplet=chiplet)
 
+                    if filename.container_path != container_path:
+                        raise ValueError("Unexpected container path")
+
                     save_path = str(filename.filename)
 
                     if save_path in zip_file.namelist() and not overwrite:
