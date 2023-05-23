@@ -55,6 +55,14 @@ def test_loading_year(chiplet_dir):
     for chiplet in chiplets:
         assert chiplet.year == test_year
 
+    chiplets = ecofuture.preproc.load_chiplets(
+        chiplet_dir=chiplet_dir,
+        exclude_years=[test_year],
+    )
+
+    for chiplet in chiplets:
+        assert chiplet.year != test_year
+
 
 def test_loading_subsets(chiplet_dir):
 
@@ -67,6 +75,14 @@ def test_loading_subsets(chiplet_dir):
 
     for chiplet in chiplets:
         assert chiplet.subset_num in subset_nums
+
+    chiplets = ecofuture.preproc.load_chiplets(
+        chiplet_dir=chiplet_dir,
+        exclude_subset_nums=subset_nums,
+    )
+
+    for chiplet in chiplets:
+        assert chiplet.subset_num not in subset_nums
 
 
 def test_loading_subset_instance_nums(chiplet_dir):

@@ -96,8 +96,10 @@ class ChipletFilename:
 
 def load_chiplets(
     chiplet_dir: pathlib.Path,
-    years: list[int] | None = None,
-    subset_nums: list[int] | None = None,
+    years: typing.Iterable[int] | None = None,
+    exclude_years: typing.Iterable[int] = (2019, 2020, 2021, 2022, 2023),
+    subset_nums: typing.Iterable[int] | None = None,
+    exclude_subset_nums: typing.Iterable[int] = tuple(),
     subset_instance_nums: list[int] | None = None,
     measurement: str = "level4",
     just_filenames: bool = False,
@@ -111,8 +113,12 @@ def load_chiplets(
         Directory containing the chiplet files.
     years:
         A collection of years to include; default is to include all years.
+    exclude_years:
+        A collection of years to exclude; default is to exclude 2019 and beyond.
     subset_nums:
         A collection of subsets to include; default is to include all subsets.
+    exclude_subset_nums:
+        A collection of subsets to exclude; default is not to exclude any.
     subset_instance_nums:
         A collection of subset instance numbers to include; default is to include all
         subset instance numbers. Note that these are not allowed to vary across subset
@@ -139,6 +145,14 @@ def load_chiplets(
 
         if subset_nums is None:
             subset_nums = avail_subset_nums
+
+    # apply exclusions
+    years = [year for year in years if year not in exclude_years]
+    subset_nums = [
+        subset_num
+        for subset_num in subset_nums
+        if subset_num not in exclude_subset_nums
+    ]
 
     for year in years:
         for subset_num in subset_nums:
