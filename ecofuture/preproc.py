@@ -51,8 +51,6 @@ import geojson
 import pyproj
 import shapely
 
-import tqdm
-
 
 @dataclasses.dataclass(frozen=True)
 class Position:
@@ -511,7 +509,7 @@ def form_chiplets(
     chiplets: dict[Position, dict[int, Chiplet]] = {}
 
     # `pos_chips` will contain the entries for each year for a given position
-    for pos_chips in tqdm.tqdm(chips.values()):
+    for pos_chips in chips.values():
         # the region test is quite slow, so assume that the geometry is the
         # same across years and just assess it once, using the first entry
         # as representative
