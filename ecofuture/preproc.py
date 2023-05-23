@@ -51,6 +51,8 @@ import geojson
 import pyproj
 import shapely
 
+import tqdm
+
 
 @dataclasses.dataclass(frozen=True)
 class Position:
@@ -360,49 +362,95 @@ def render_chiplets(
     if remap:
         remap_lut = get_remapping_lut()
 
-    for year_chiplets in chiplets.values():
-        for chiplet in year_chiplets.values():
-            filename = get_chiplet_filename(chiplet=chiplet)
+    # rearrange chiplets as year -> subset_num -> subset_instance_num
+    # otherwise writing the zips takes *forever*
+    chiplets_rearr: dict[int, dict[int, dict[int, Chiplet]]] = {}
 
-            # outer zip file
-            container_path = chiplet_dir / filename.container_path
+    for pos_chiplets in chiplets.values():
 
-            with zipfile.ZipFile(container_path, mode="a") as zip_file:
+        for (year, chiplet) in pos_chiplets.items():
 
-                save_path = str(filename.filename)
+            if year not in chiplets_rearr:
+                year_dict: dict[int, dict[int, Chiplet]] = {}
+                chiplets_rearr[year] = year_dict
 
-                if save_path in zip_file.namelist() and not overwrite:
-                    print(
-                        f"File {filename.filename} exists in "
-                        + "{filename.container_path}; skipping"
-                    )
+            subset_num = chiplet.subset_num
 
-                else:
-                    # make a copy of the data so we don't retain a reference
-                    # to the full data
-                    chiplet_data = chiplet.data.copy().values
+            if subset_num is None:
+                raise ValueError("Unexpected subset number")
 
-                    if remap:
-                        chiplet_data = remap_data(
-                            data=chiplet_data,
-                            lut=remap_lut,
+            if subset_num not in chiplets_rearr[year]:
+                year_subset_dict: dict[int, Chiplet] = {}
+                chiplets_rearr[year][subset_num] = year_subset_dict
+
+            subset_instance_num = chiplet.subset_instance_num
+
+            if subset_instance_num is None:
+                raise ValueError("Unexpected subset instance number")
+
+            chiplets_rearr[year][subset_num][subset_instance_num] = chiplet
+
+    for (year, year_chiplets) in chiplets_rearr.items():
+        for (subset_num, year_subset_chiplets) in year_chiplets.items():
+
+            # sniff the first chiplet for the container zip path
+            rep_filename = get_chiplet_filename(chiplet=year_subset_chiplets[1])
+            container_path = chiplet_dir / rep_filename.container_path
+
+            if container_path.exists():
+                print(f"Zip path {container_path} exists; skipping")
+                break
+
+            # no/little compression
+            with zipfile.ZipFile(
+                container_path,
+                mode="w",
+                compression=zipfile.ZIP_BZIP2,
+                compresslevel=1,
+            ) as zip_file:
+
+                for chiplet in year_subset_chiplets.values():
+
+                    filename = get_chiplet_filename(chiplet=chiplet)
+
+                    save_path = str(filename.filename)
+
+                    if save_path in zip_file.namelist() and not overwrite:
+                        print(
+                            f"File {filename.filename} exists in "
+                            + "{filename.container_path}; skipping"
                         )
 
-                    with zip_file.open(save_path, mode="w") as zip_file_handle:
+                    else:
+                        # make a copy of the data so we don't retain a reference
+                        # to the full data
+                        chiplet_data = chiplet.data.copy().values
 
-                        # finally, save
-                        # probably excessive metadata, but best to save rather than
-                        # not save and miss it later
-                        np.savez(
-                            file=zip_file_handle,
-                            data=chiplet_data,
-                            position=np.array([chiplet.position.x, chiplet.position.y]),
-                            subset_num=np.array([chiplet.subset_num]),
-                            subset_instance_num=np.array([chiplet.subset_instance_num]),
-                            raw_filename=np.array([chiplet.filename], dtype=str),
-                            year=np.array([chiplet.year]),
-                            measurement=np.array([chiplet.measurement], dtype=str),
-                        )
+                        if remap:
+                            chiplet_data = remap_data(
+                                data=chiplet_data,
+                                lut=remap_lut,
+                            )
+
+                        with zip_file.open(save_path, mode="w") as zip_file_handle:
+
+                            # finally, save
+                            # probably excessive metadata, but best to save rather than
+                            # not save and miss it later
+                            np.savez(
+                                file=zip_file_handle,
+                                data=chiplet_data,
+                                position=np.array(
+                                    [chiplet.position.x, chiplet.position.y]
+                                ),
+                                subset_num=np.array([chiplet.subset_num]),
+                                subset_instance_num=np.array(
+                                    [chiplet.subset_instance_num]
+                                ),
+                                raw_filename=np.array([chiplet.filename], dtype=str),
+                                year=np.array([chiplet.year]),
+                                measurement=np.array([chiplet.measurement], dtype=str),
+                            )
 
 
 def assign_subset_labels(
@@ -460,7 +508,7 @@ def form_chiplets(
     chiplets: dict[Position, dict[int, Chiplet]] = {}
 
     # `pos_chips` will contain the entries for each year for a given position
-    for pos_chips in chips.values():
+    for pos_chips in tqdm.tqdm(chips.values()):
         # the region test is quite slow, so assume that the geometry is the
         # same across years and just assess it once, using the first entry
         # as representative
@@ -519,6 +567,13 @@ def form_chiplets(
                     x=potential_chiplet_data.x_centre,
                     y=potential_chiplet_data.y_centre,
                 )
+
+                # to save memory, drop some un-used elements from the chip
+                # data structure
+                potential_chiplet_data = potential_chiplet_data.drop_vars(
+                    names=["x", "y", "spatial_ref"],
+                )
+                potential_chiplet_data.attrs = {}
 
                 chiplet = Chiplet(
                     filename=chip.filename,
