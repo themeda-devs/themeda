@@ -24,4 +24,11 @@ module load python/3.9.6
 # module load cuda/11.6.0
 module load web_proxy/latest
 
-poetry run poetry run ecofuture train  --level4 ../Data/Level4_chips/ --width 128 --height 128 --wandb
+# unzip to ssd
+export CHIPLET_DIR=/tmp/chiplets
+export UNZIP_DISABLE_ZIPBOMB_DETECTION=true
+for x in $(find /data/gpfs/projects/punim1932/Data/chiplets -mindepth 1 -maxdepth 1 -type f -perm -444) ; do
+    unzip $x -d $CHIPLET_DIR
+done
+
+poetry run poetry run ecofuture train --chiplets $CHIPLET_DIR --validation-subset 0 --wandb
