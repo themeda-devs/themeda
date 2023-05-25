@@ -43,8 +43,6 @@ pre-commit = "^2.15.0"
 sphinx-copybutton = "^0.4.0"
 black = "^21.10b0"
 sphinx-click = {git = "https://github.com/rbturnbull/sphinx-click.git"}
-
-[tool.poetry.group.dev.dependencies]
 mypy = "^1.3.0"
 ruff = "^0.0.267"
 jupyter = "^1.0.0"
