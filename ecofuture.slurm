@@ -31,4 +31,6 @@ for x in $(find /data/gpfs/projects/punim1932/Data/chiplets -mindepth 1 -maxdept
     unzip $x -d $CHIPLET_DIR
 done
 
-poetry run poetry run ecofuture train --chiplets $CHIPLET_DIR --validation-subset 0 --wandb
+# export CHIPLET_DIR=../Data/chiplets2000/
+
+poetry run poetry run ecofuture train --chiplet-dir $CHIPLET_DIR --validation-subset 1 --wandb --max-chiplets 10000 # --wandb-entity punim1932

@@ -9,6 +9,7 @@ from fastai.data.block import TransformBlock
 import rasterio
 from torch import Tensor
 from typing import Dict
+import numpy as np
 
 
 @dataclass
@@ -134,3 +135,31 @@ class CroppedChipBlock(TransformBlock):
             t = torch.tensor(mapped)[inverse].reshape(t.shape)
 
         return t.long()
+
+
+@dataclass
+class Chiplet:
+    subset:int
+    id:str
+
+    def __hash__(self):
+        return hash(f"{self.subset}_{self.id}")
+
+
+class ChipletBlock(TransformBlock):
+    def __init__(self, base_dir:Path, dates:List[datetime]):
+        super().__init__(item_tfms=[self.tuple_to_tensor])
+        self.dates = dates
+        self.base_dir = Path(base_dir)
+
+    def tuple_to_tensor(self, item:Chiplet):
+        arrays = []
+        for date in self.dates:
+            date_str = date.strftime('%Y')
+            path = self.base_dir/f"ecofuture_chiplet_level4_{date_str}_subset_{item.subset}_{item.id}"
+            if path.exists():
+                data = np.load(path)
+                arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+
+        return torch.cat(arrays).long()
+

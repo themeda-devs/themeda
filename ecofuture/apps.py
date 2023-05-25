@@ -17,7 +17,7 @@ from dateutil import rrule
 
 from .dataloaders import TPlus1Callback
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
-from .transforms import CroppedChipBlock, CroppedChip
+from .transforms import CroppedChipBlock, CroppedChip, ChipletBlock, Chiplet
 from .loss import MultiDatatypeLoss
 from .metrics import accuracy
 
@@ -72,83 +72,64 @@ class SetSplitter:
         return IndexSplitter(validation_indexes)(objects)
 
 
+
+class SubsetSplitter:
+    def __init__(self, validation_set):
+        self.validation_set = validation_set
+
+        assert 1 <= validation_set <= 5
+
+    def __call__(self, objects):
+        validation_indexes = mask2idxs(object.subset == self.validation_set for object in objects)
+        return IndexSplitter(validation_indexes)(objects)
+
+
+
 class EcoFuture(ta.TorchApp):
     """
     A model to forecast changes to ecosystems in Australia.
     """
     def dataloaders(
         self,
-        # inputs:List[str] = ta.Param(help="The input products to use from Digital Earth Australia."),
-        # outputs:List[str] = ta.Param(
-        #     None, 
-        #     help="The output products to use from Digital Earth Australia. " +
-        #     "If empty then it uses the same as the input products",
-        # ),
-        # cache:Path=ta.Param("cache", help="The path to a directory with cached product outputs"),
-        level4:Path=ta.Param("", help="The path to a directory with cached level 4 chips"),
-        # centres:Path=ta.Param(help="A GeoJSON file specifying the centers of the chips."),
+        chiplet_dir:Path=ta.Param("", help="The path to a directory with cached level 4 chiplets"),
         start:str=ta.Param("1988-01-01", help="The start date."),
-        end:str=ta.Param("2020-01-01", help="The start date."),
-        interval:Interval=ta.Param(Interval.YEARLY.value, help="The start date."),
-        width:int=200,
+        end:str=ta.Param("2018-01-01", help="The end date."),
+        interval:Interval=ta.Param(Interval.YEARLY.value, help="The time interval to use."),
+        max_chiplets:int=None,
+        width:int=160,
         height:int=None,
         batch_size:int = ta.Param(default=1, help="The batch size."),
-        split:int=ta.Param(None, help="The cross-validation split to use."),
-        validation_proportion:float=0.2,
-        stride:int = 1,
-        stride_x:int = 0,
-        stride_y:int = 0,
+        validation_subset:int=1,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
         Returns:
             DataLoaders: The DataLoaders object.
         """
-        # self.inputs = inputs
-        # self.outputs = outputs or inputs
-        self.height = height or width
-        self.width = width
+        chiplets = set()
+        for path in Path(chiplet_dir).glob("*.npz"):
+            # path is something like: ecofuture_chiplet_level4_1988_subset_1_00004207.npz
+            chiplet_components = path.name.split("_")
+            subset = int(chiplet_components[5])
+            chiplet_id = chiplet_components[6]
+            chiplets.add( Chiplet(subset=subset, id=chiplet_id) )
+        chiplets = list(chiplets)
 
-        stride_x = stride_x or stride
-        stride_y = stride_y or stride
+        if max_chiplets and len(chiplets) > max_chiplets:
+            random.seed(42)
+            chiplets = random.sample(chiplets, max_chiplets)
 
-        dates = get_dates(start=start, end=end, interval=interval)
-
-        level4 = Path(level4)
-        tiffs = level4.glob("*.tif")
-        chips = set()
-        for tiff in tiffs:
-            m = re.match(r"(.*)_(\d{4})-(\d{2})-(\d{2})_level4\.tif", tiff.name)
-            chip = m.group(1)
-            chips.add(chip)
-
-        validation = set()
-        random.seed(42)
-        cropped_chips = []
-        for chip in chips:
-            validation = random.random() < validation_proportion
-            for x in range(0, 4_000, self.width * stride_x):
-                for y in range(0, 4_000, self.height * stride_y):
-                    cropped_chip = CroppedChip(
-                        chip=chip,
-                        validation=validation,
-                        x=x,
-                        y=y,
-                        height=self.height,
-                        width=self.width,
-                    )
-                    cropped_chips.append(cropped_chip)
-        
-        splitter = AttributeSplitter()
+        dates = get_dates(start=start, end=end, interval=interval)        
+        splitter = SubsetSplitter(validation_subset)
 
         datablock = DataBlock(
-            blocks=(CroppedChipBlock(base_dir=level4, dates=dates),CroppedChipBlock(base_dir=level4, dates=dates)),
+            blocks=(ChipletBlock(base_dir=chiplet_dir, dates=dates),),
             splitter=splitter,
         )
 
         dataloaders = DataLoaders.from_dblock(
             datablock,
-            source=cropped_chips,
+            source=chiplets,
             bs=batch_size,
             # dl_type=TPlus1Dataloader,
             # dl_kwargs=[dict(after_batch=t_plus_one),dict(after_batch=t_plus_one)],
