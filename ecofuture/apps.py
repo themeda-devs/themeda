@@ -1,3 +1,4 @@
+# -*- coding: future_typing -*-
 
 import random
 import re
@@ -51,6 +52,7 @@ class AttributeSplitter:
     def __call__(self, objects):
         validation_indexes = mask2idxs(object.validation for object in objects)
         return IndexSplitter(validation_indexes)(objects)
+
 
 class DictionarySplitter:
     def __init__(self, dictionary):
