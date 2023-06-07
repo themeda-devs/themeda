@@ -1,5 +1,6 @@
 # -*- coding: future_typing -*-
 
+import random
 from typing import List
 import torch
 from dataclasses import dataclass
@@ -147,19 +148,37 @@ class Chiplet:
 
 
 class ChipletBlock(TransformBlock):
-    def __init__(self, base_dir:Path, dates:List[datetime]):
+    def __init__(self, base_dir:Path, dates:List[datetime], ignore_index:int=21, max_years:int=0): # hack
         super().__init__(item_tfms=[self.tuple_to_tensor])
         self.dates = dates
         self.base_dir = Path(base_dir)
+        self.ignore_index = ignore_index
+        self.max_years = max_years
+        self.time_dims = min(self.max_years, len(self.dates)) if self.max_years else len(self.dates)
 
     def tuple_to_tensor(self, item:Chiplet):
+        paths = [
+            self.base_dir/f"ecofuture_chiplet_level4_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
+            for date in self.dates
+        ]
+
+        # filter for paths that exist
+        paths = [path for path in paths if path.exists()]
+        
+        if len(paths) > self.time_dims:
+            start = random.randint(0,len(paths)-self.time_dims)
+            end = start + self.time_dims
+            paths = paths[start:end]
+
         arrays = []
-        for date in self.dates:
-            date_str = date.strftime('%Y')
-            path = self.base_dir/f"ecofuture_chiplet_level4_{date_str}_subset_{item.subset}_{item.id}"
-            if path.exists():
-                data = np.load(path)
-                arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+        for path in paths:
+            data = np.load(path, allow_pickle=True)
+            arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+
+        if len(arrays) < self.time_dims:
+            arrays.extend( [torch.full_like(arrays[0], self.ignore_index)]* (self.time_dims-len(arrays)))
+
+        assert len(arrays) == self.time_dims
 
         return torch.cat(arrays).long()
 

@@ -96,6 +96,7 @@ class EcoFuture(ta.TorchApp):
         end:str=ta.Param("2018-01-01", help="The end date."),
         interval:Interval=ta.Param(Interval.YEARLY.value, help="The time interval to use."),
         max_chiplets:int=None,
+        max_years:int=None,
         width:int=160,
         height:int=None,
         batch_size:int = ta.Param(default=1, help="The batch size."),
@@ -123,7 +124,7 @@ class EcoFuture(ta.TorchApp):
         splitter = SubsetSplitter(validation_subset)
 
         datablock = DataBlock(
-            blocks=(ChipletBlock(base_dir=chiplet_dir, dates=dates),),
+            blocks=(ChipletBlock(base_dir=chiplet_dir, dates=dates, max_years=max_years),),
             splitter=splitter,
         )
 
@@ -148,7 +149,7 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
-        categorical_counts = 21 # hack
+        categorical_counts = 22 # hack - the extra one is padding
         return EcoFutureModel(
             categorical_counts=[categorical_counts], # hack
             out_channels=categorical_counts, # hack
@@ -166,12 +167,18 @@ class EcoFuture(ta.TorchApp):
             help="Whether to use the L1 loss (Mean Absolute Loss) for continuous variables. "
                 "Otherwise the Mean Squared Error (L2 loss) is used.",
         ),
+        label_smoothing:float = ta.Param(
+            default=0.0, 
+            min=0.0,
+            max=1.0,
+            help="The amount of label smoothing to use.",
+        ), 
     ):
         """
         Returns the loss function to use with the model.
         By default the Mean Squared Error (MSE) is used.
         """
-        return MultiDatatypeLoss(l1=l1)
+        return MultiDatatypeLoss(l1=l1, label_smoothing=label_smoothing, ignore_index=21) # hack
         
     def output_results(
         self,
