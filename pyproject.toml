@@ -28,6 +28,9 @@ future-typing = "^0.4.1"
 rioxarray = "^0.14.1"
 pyproj = "^3.5.0"
 shapely = "^2.0.1"
+gputil = "^1.4.0"
+plotly = "^5.15.0"
+statsmodels = "^0.14.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
