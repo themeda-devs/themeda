@@ -54,18 +54,18 @@ class Chiplet:
 
 
 class ChipletBlock(TransformBlock):
-    def __init__(self, base_dir:Path, dates:List[datetime], ignore_index:int=21, max_years:int=0, pad:bool=True): # hack
+    def __init__(self, base_dir:Path, dates:List[datetime], pad_value:int=0, max_years:int=0, pad:bool=True): # hack
         super().__init__(item_tfms=[self.tuple_to_tensor])
         self.dates = dates
         self.base_dir = Path(base_dir)
-        self.ignore_index = ignore_index
+        self.pad_value = pad_value
         self.max_years = max_years
         self.time_dims = min(self.max_years, len(self.dates)) if self.max_years else len(self.dates)
         self.pad = pad
 
     def get_paths(self, item:Chiplet):
         paths = [
-            self.base_dir/f"ecofuture_chiplet_level4_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
+            self.base_dir/f"ecofuture_chiplet_{self.base_dir.name}_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
             for date in self.dates
         ]
 
@@ -81,16 +81,21 @@ class ChipletBlock(TransformBlock):
 
     def tuple_to_tensor(self, item:Chiplet):
         arrays = []
+        print('item', item)
+        print('self.base_dir', self.base_dir)
         for path in self.get_paths(item):
             data = np.load(path, allow_pickle=True)
             arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
 
+        print('path', path)
+        print('data.dtype', data["data"].dtype)
+        print('len(arrays)', len(arrays))
         if self.pad and len(arrays) < self.time_dims:
-            arrays.extend( [torch.full_like(arrays[0], self.ignore_index)]* (self.time_dims-len(arrays)))
+            arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))
 
         assert len(arrays) == self.time_dims
 
-        return torch.cat(arrays).long()
+        return torch.cat(arrays)
 
     def get_position(self, item:Chiplet):
         paths = self.get_paths(item)

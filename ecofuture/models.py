@@ -9,6 +9,7 @@ from enum import Enum
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
+
 class OrdinalTensor(torch.Tensor):
     pass
 
@@ -80,6 +81,7 @@ class MultiDatatypeEmbedding(nn.Module):
         categorical_index = 0
         ordinal_index = 0
         continuous_index = torch.as_tensor(0)
+        breakpoint()
         for input in inputs:
             if isinstance(input, OrdinalTensor):
                 embedding = self.embeddings_ordinal[ordinal_index](input)

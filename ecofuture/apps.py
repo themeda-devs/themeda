@@ -1,7 +1,5 @@
 # -*- coding: future_typing -*-
 
-import random
-import re
 from pathlib import Path
 from torch import nn
 from fastai.data.core import DataLoaders
@@ -91,14 +89,14 @@ class EcoFuture(ta.TorchApp):
     """
     def dataloaders(
         self,
-        chiplet_dir:Path=ta.Param("", help="The path to a directory with cached level 4 chiplets"),
+        level4:Path=ta.Param("", help="The path to a directory with cached level 4 chiplets"),
+        rain:Path=ta.Param("", help="The path to a directory with cached rain chiplets"),
+        tmax:Path=ta.Param("", help="The path to a directory with cached tmax chiplets"),
         start:str=ta.Param("1988-01-01", help="The start date."),
         end:str=ta.Param("2018-01-01", help="The end date."),
         interval:Interval=ta.Param(Interval.YEARLY.value, help="The time interval to use."),
         max_chiplets:int=None,
         max_years:int=None,
-        width:int=160,
-        height:int=None,
         batch_size:int = ta.Param(default=1, help="The batch size."),
         validation_subset:int=1,
     ) -> DataLoaders:
@@ -107,21 +105,38 @@ class EcoFuture(ta.TorchApp):
         Returns:
             DataLoaders: The DataLoaders object.
         """
-        chiplets = get_chiplets_list(chiplet_dir, max_chiplets)
         dates = get_dates(start=start, end=end, interval=interval)        
         splitter = SubsetSplitter(validation_subset)
+        self.level4 = level4
+        self.rain = rain
+        self.tmax = tmax
+        self.in_channels_continuous = bool(rain) + bool(tmax)
+
+        blocks = []
+        for directory in (level4, rain, tmax):
+            if not directory:
+                continue
+            directory = Path(directory)
+            if not directory.exists:
+                raise FileNotFoundError(f"Cannot find directory {directory}")
+            print(directory)
+            blocks.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
+        
+        breakpoint()
+        assert len(blocks) > 0, "At least one of level4, rain or tmax must be given a valid directory."
+
+        chiplets = get_chiplets_list(blocks[0].base_dir, max_chiplets)
 
         datablock = DataBlock(
-            blocks=(ChipletBlock(base_dir=chiplet_dir, dates=dates, max_years=max_years),),
+            blocks=blocks,
             splitter=splitter,
+            n_inp=len(blocks),
         )
 
         dataloaders = DataLoaders.from_dblock(
             datablock,
             source=chiplets,
             bs=batch_size,
-            # dl_type=TPlus1Dataloader,
-            # dl_kwargs=[dict(after_batch=t_plus_one),dict(after_batch=t_plus_one)],
         )
 
         return dataloaders
@@ -140,10 +155,13 @@ class EcoFuture(ta.TorchApp):
         categorical_counts = 22 # hack - the extra one is padding
         return EcoFutureModel(
             categorical_counts=[categorical_counts], # hack
-            out_channels=categorical_counts, # hack
+            in_channels_continuous=self.in_channels_continuous,
+            # out_channels=categorical_counts, # hack
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
         )
+    
+
     
     def extra_callbacks(self):
         return [TPlus1Callback()]

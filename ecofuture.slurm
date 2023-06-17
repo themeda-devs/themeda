@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 28:00:00
+#SBATCH -t 04:00:00
 
 # SBATCH -p physical
 #SBATCH -p gpu-a100
@@ -21,7 +21,9 @@
 # Load the environment variables
 module purge
 module load python/3.9.6
-# module load cuda/11.6.0
+module load cuda/11.7.0
+module load cudnn/8.8.1.3-cuda-11.7.0
+module load nccl/2.14.3-cuda-11.7.0
 module load web_proxy/latest
 
 # unzip to ssd
@@ -31,10 +33,18 @@ for x in $(find /data/gpfs/projects/punim1932/Data/chiplets/level4/ -mindepth 1 
     unzip $x -d $CHIPLET_DIR
 done
 
-# export CHIPLET_DIR=../Data/old/chiplets2000/
+# export CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
+
+
 
 export BATCH=4
 export SMOOTHING=.1
 export MAX_YEARS=15
-export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-5
-poetry run poetry run ecofuture train --chiplet-dir $CHIPLET_DIR --validation-subset 1 --max-chiplets 0 --label-smoothing $SMOOTHING --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --wandb # --wandb-entity punim1932
+# export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-5
+export RUN_NAME=test-multi
+
+poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --max-chiplets 10000 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years 6 --learning-rate 0.00001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
+
+#poetry run poetry run ecofuture train --chiplet-dir $CHIPLET_DIR --validation-subset 1 --max-chiplets 0 --label-smoothing $SMOOTHING --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --wandb # --wandb-entity punim1932
+
+# poetry run poetry run ecofuture train --chiplet-dir $CHIPLET_DIR --validation-subset 1 --max-chiplets 0 --label-smoothing $SMOOTHING --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --wandb # --wandb-entity punim1932
