@@ -9,4 +9,5 @@ def accuracy(predictions, *targets):
     for prediction, target in zip(predictions, targets):
         prediction = torch.argmax(prediction, dim=2) # only for categorical
         correct = prediction == target
-        return correct.float().mean() # hack
+        
+        return correct.float().mean() # hack for only single input

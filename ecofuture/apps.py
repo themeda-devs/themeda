@@ -15,9 +15,9 @@ from enum import Enum
 import dateutil.parser
 from dateutil import rrule
 
-from .dataloaders import TPlus1Callback
+from .dataloaders import TPlus1Callback, get_chiplets_list
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
-from .transforms import CroppedChipBlock, CroppedChip, ChipletBlock, Chiplet
+from .transforms import ChipletBlock
 from .loss import MultiDatatypeLoss
 from .metrics import accuracy
 
@@ -107,19 +107,7 @@ class EcoFuture(ta.TorchApp):
         Returns:
             DataLoaders: The DataLoaders object.
         """
-        chiplets = set()
-        for path in Path(chiplet_dir).glob("*.npz"):
-            # path is something like: ecofuture_chiplet_level4_1988_subset_1_00004207.npz
-            chiplet_components = path.name.split("_")
-            subset = int(chiplet_components[5])
-            chiplet_id = chiplet_components[6]
-            chiplets.add( Chiplet(subset=subset, id=chiplet_id) )
-        chiplets = list(chiplets)
-
-        if max_chiplets and len(chiplets) > max_chiplets:
-            random.seed(42)
-            chiplets = random.sample(chiplets, max_chiplets)
-
+        chiplets = get_chiplets_list(chiplet_dir, max_chiplets)
         dates = get_dates(start=start, end=end, interval=interval)        
         splitter = SubsetSplitter(validation_subset)
 
