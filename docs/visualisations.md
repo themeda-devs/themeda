@@ -81,3 +81,68 @@ The "Herbaceous" category comprises four sub-categories, each displaying distinc
 
 
 Overall, the "Herbaceous" category stands out as a significant component of the land cover composition. Several sub-categories, such as "Herbaceous Open 40" and "Herbaceous Open 15," exhibit substantial percentages, indicating a significant presence of herbaceous vegetation in the landscape. The observed fluctuations within these sub-categories emphasize the dynamic nature of herbaceous land cover over the analyzed period.
+
+### <ins>Aquatic</ins>
+
+The "Aquatic" category consists of four sub-categories, each displaying distinct trends in aquatic land cover over the analyzed period. Notably, the "Aquatic" category encompasses sub-categories with varying percentages and significant fluctuations.
+
+1. **Aquatic Woody Closed:** The "Aquatic Woody Closed" sub-category exhibits substantial variations in the trendline, characterized by numerous peaks and troughs. Starting at approximately 15% coverage in 1988, the proportion gradually declines to around 14% by 2020. However, the trendline reveals notable year-to-year changes, with some years surpassing 20% coverage and others dropping to around 12%. For instance, the lowest value of 9% occurred in 2017, while the highest value of 23% was observed in 2018. Given the relatively high percentages and significant variability, the "Aquatic Woody Closed" sub-category emerges as a significant component of the aquatic land cover.
+
+    ![AWC Trendline](../visualisations/Aquaic_Woody_Closed.png)
+
+2. **Aquatic Woody Open:** The "Aquatic Woody Open" sub-category shows a gradual increasing trend over time. Beginning at around 6% coverage, the proportion steadily rises, reaching approximately 10% by the end of the analyzed period (2020). This upward trend suggests a progressive expansion of woody open vegetation within aquatic areas.
+
+    ![AWO trendline](../visualisations/Aquatic%20Woody%20Open.png)
+
+
+3. **Aquatic Woody Sparse to Open:** The "Aquatic Woody Sparse to Open" sub-category displays a relatively low percentage value, starting at 1% and gradually increasing to approximately 2.3% by 2020. Despite the modest coverage, there is a discernible increasing trend for this category, indicating a slight expansion of woody sparse to open land cover within aquatic environments.
+
+    ![AWSO Trendline](../visualisations/AWSO.png)
+
+
+4. **Aquatic Herbaceous:** The "Aquatic Herbaceous" sub-category exhibits a decreasing trend over the analyzed period. Initially, the coverage remained consistently above 2% during the early and mid-1990s, but it has gradually declined to approximately 2% in recent years. This decreasing trend suggests a decrease in the presence of herbaceous vegetation within aquatic areas.
+
+    ![AH Trendline](../visualisations/AH.png)
+
+
+Among the sub-categories within the "Aquatic" category, "Aquatic Woody Open" stands out as the most significant in terms of coverage and trend. Additionally, the "Aquatic Woody Closed" sub-category demonstrates significant fluctuations, contributing to the overall dynamics of aquatic land cover over time.
+
+### <ins>Artificial Surface</ins>
+
+The "Artificial Surface" category represents man-made structures and developments. Although this category does not have any sub-categories, it exhibits an interesting trend in land cover over the analyzed period.
+
+Until the early 2000s, the coverage of artificial surfaces remained relatively low, with minimal presence observed in the landscape. However, in recent years, there has been a gradual increase in artificial surface coverage. By 2020, the proportion of artificial surface land cover reached approximately 1%. While this indicates a growing presence of human-made structures, the percentage still remains relatively low in comparison to other land cover categories.
+
+Overall, the "Artificial Surface" category demonstrates a notable trend of increasing coverage over time, reflecting the expansion of human settlements and infrastructure. However, it should be noted that the current percentage of artificial surface remains relatively insignificant compared to other land cover categories.
+
+![ATS Trendline](../visualisations/ATS.png)
+
+### <ins>Natural</ins>
+
+The "Natural" category comprises two sub-categories, each demonstrating distinct trends in natural land cover over the analyzed period. This category encompasses land cover types that are predominantly unaffected by human influence.
+
+1. **Natural Bare Ground:** The "Natural Bare Ground" sub-category starts with a significant coverage of 8.3% and concludes with a similar percentage of 8.3% by 2020. However, the trendline reveals interesting dynamics over time. Initially, there is a gradual decline in coverage until the mid-2000s, reducing the proportion to under 2%. Subsequently, the trend reverses, leading to a gradual increase and ultimately returning to the original coverage of 8.3% by the end of the analyzed period. This fluctuation indicates varying patterns of bare ground land cover within natural areas.
+
+    ![NBG Trendline](../visualisations/NBG.png)
+
+
+2. **Natural Herbaceous Sparse:** The trendline for the "Natural Herbaceous Sparse" sub-category closely resembles that of the "Natural Bare Ground" category. However, this sub-category exhibits higher coverage throughout the analyzed period. Starting at approximately 15% coverage, there is a gradual decline until the mid-2000s. Subsequently, the trend shifts, leading to a gradual increase, ultimately reaching a coverage of around 15% by 2020. This pattern suggests fluctuations in the presence of sparse herbaceous vegetation within natural areas.
+
+    ![NHS Trendline](../visualisations/NHS.png)
+
+The "Natural" category as a whole appears to be significant in terms of coverage, with both sub-categories exhibiting notable proportions. The fluctuations observed in both the "Natural Bare Ground" and "Natural Herbaceous Sparse" sub-categories contribute to the dynamics and variability of natural land cover over time.
+
+### <ins>Water</ins>
+
+The "Water" category encompasses land cover types related to water bodies, including permanent water bodies and seasonal water variations. This category provides insights into the presence and dynamics of water resources within the analyzed region.
+
+1. **Water:** The "Water" sub-category represents permanent water bodies such as rivers, lakes, and reservoirs. This category exhibits a substantial coverage of approximately 20% from 1988 to 2020. While the overall trendline remains relatively stable, there is a slight increasing trend observed from 2010 onwards. This indicates a gradual expansion or changes in permanent water bodies over time.
+
+    ![W Trendline](../visualisations/Water.png)
+
+
+2. **Water 1 to 6 months:** The "Water 1 to 6 months" sub-category denotes seasonal water variations, including temporary water bodies or water presence during specific periods of the year. This category, while present, does not contribute significantly to the overall land cover composition. The trendline for this sub-category shows a relatively uniform pattern, ranging from approximately 1% to 1.5% coverage throughout the analyzed period.
+
+    ![W2 Trendline](../visualisations/Water1_6.png)
+
+The "Water" category, particularly the sub-category of permanent water bodies, plays a crucial role in land cover comparisons and provides insights into the distribution and changes in water resources over time. With a significant coverage of approximately 20%, the presence of water bodies has a notable impact on the overall land cover composition.
