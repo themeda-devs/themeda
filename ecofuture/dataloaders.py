@@ -8,8 +8,12 @@ from .transforms import Chiplet
 
 class TPlus1Callback(Callback):
     def before_batch(self):
-        self.learn.xb = tuple(x[:,:-1] for x in self.xb)
-        self.learn.yb = tuple(x[:,1:] for x in self.xb)
+        xb = self.xb
+        # normalisation hack
+        xb = (xb[0], xb[1]/2000.0, xb[2]/40.0)
+        self.learn.xb = tuple(x[:,:-1] for x in xb)
+        # self.learn.yb = (xb[0][:,1:],)
+        self.learn.yb = tuple(x[:,1:] for x in xb)
 
 
 def get_chiplets_list(chiplet_dir:Path, max_chiplets:int=0):

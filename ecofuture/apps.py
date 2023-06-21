@@ -2,6 +2,7 @@
 
 from pathlib import Path
 from torch import nn
+from functools import partial
 from fastai.data.core import DataLoaders
 import torchapp as ta
 from fastcore.foundation import mask2idxs
@@ -12,12 +13,15 @@ console = Console()
 from enum import Enum
 import dateutil.parser
 from dateutil import rrule
+from fastai.data.block import TransformBlock
+
+from polytorch import CategoricalData, ContinuousData, OrdinalData, PolyLoss
+from polytorch.metrics import categorical_accuracy, smooth_l1
 
 from .dataloaders import TPlus1Callback, get_chiplets_list
 from .models import ResNet, TemporalProcessorType, EcoFutureModel
 from .transforms import ChipletBlock
-from .loss import MultiDatatypeLoss
-from .metrics import accuracy
+from .metrics import smooth_l1_rain, smooth_l1_tmax
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -106,6 +110,7 @@ class EcoFuture(ta.TorchApp):
             DataLoaders: The DataLoaders object.
         """
         dates = get_dates(start=start, end=end, interval=interval)        
+        self.input_types = []
         splitter = SubsetSplitter(validation_subset)
         self.level4 = level4
         self.rain = rain
@@ -113,6 +118,7 @@ class EcoFuture(ta.TorchApp):
         self.in_channels_continuous = bool(rain) + bool(tmax)
 
         blocks = []
+        getters = []
         for directory in (level4, rain, tmax):
             if not directory:
                 continue
@@ -120,15 +126,25 @@ class EcoFuture(ta.TorchApp):
             if not directory.exists:
                 raise FileNotFoundError(f"Cannot find directory {directory}")
             print(directory)
-            blocks.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
-        
-        breakpoint()
-        assert len(blocks) > 0, "At least one of level4, rain or tmax must be given a valid directory."
+            getters.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
+            blocks.append(TransformBlock)
 
-        chiplets = get_chiplets_list(blocks[0].base_dir, max_chiplets)
+            # hack
+            if directory.name == "level4":
+                self.input_types.append(CategoricalData(21))
+            elif directory.name in ["rain", "tmax"]:
+                self.input_types.append(ContinuousData())
+
+        # hack
+        self.output_types = self.input_types
+
+        assert len(getters) > 0, "At least one of level4, rain or tmax must be given a valid directory."
+
+        chiplets = get_chiplets_list(getters[0].base_dir, max_chiplets)
 
         datablock = DataBlock(
             blocks=blocks,
+            getters=getters,
             splitter=splitter,
             n_inp=len(blocks),
         )
@@ -143,6 +159,7 @@ class EcoFuture(ta.TorchApp):
 
     def model(
         self,
+        embedding_size:int=ta.Param(16, help="The number of embedding dimensions."),
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
     ) -> nn.Module:
@@ -152,39 +169,32 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
-        categorical_counts = 22 # hack - the extra one is padding
         return EcoFutureModel(
-            categorical_counts=[categorical_counts], # hack
-            in_channels_continuous=self.in_channels_continuous,
-            # out_channels=categorical_counts, # hack
+            input_types=self.input_types,
+            output_types=self.output_types,
+            embedding_size=embedding_size,
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
         )
-    
-
     
     def extra_callbacks(self):
         return [TPlus1Callback()]
 
     def loss_func(
         self, 
-        l1:bool=ta.Param(
-            default=False, 
-            help="Whether to use the L1 loss (Mean Absolute Loss) for continuous variables. "
-                "Otherwise the Mean Squared Error (L2 loss) is used.",
-        ),
-        label_smoothing:float = ta.Param(
-            default=0.0, 
-            min=0.0,
-            max=1.0,
-            help="The amount of label smoothing to use.",
-        ), 
+        # l1:bool=ta.Param(
+        #     default=False, 
+        #     help="Whether to use the L1 loss (Mean Absolute Loss) for continuous variables. "
+        #         "Otherwise the Mean Squared Error (L2 loss) is used.",
+        # ),
+        # label_smoothing:float = ta.Param(
+        #     default=0.0, 
+        #     min=0.0,
+        #     max=1.0,
+        #     help="The amount of label smoothing to use.",
+        # ), 
     ):
-        """
-        Returns the loss function to use with the model.
-        By default the Mean Squared Error (MSE) is used.
-        """
-        return MultiDatatypeLoss(l1=l1, label_smoothing=label_smoothing, ignore_index=21) # hack
+        return PolyLoss(data_types=self.output_types, feature_axis=2)
         
     def output_results(
         self,
@@ -193,4 +203,8 @@ class EcoFuture(ta.TorchApp):
         return results
 
     def metrics(self):
-        return [accuracy]
+        return [
+            partial(categorical_accuracy, data_index=0, feature_axis=2),
+            smooth_l1_rain,
+            smooth_l1_tmax,
+        ]

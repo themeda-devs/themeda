@@ -53,9 +53,10 @@ class Chiplet:
         return hash(f"{self.subset}_{self.id}")
 
 
-class ChipletBlock(TransformBlock):
+class ChipletBlock():
     def __init__(self, base_dir:Path, dates:List[datetime], pad_value:int=0, max_years:int=0, pad:bool=True): # hack
-        super().__init__(item_tfms=[self.tuple_to_tensor])
+        super().__init__()
+        # super().__init__(item_tfms=[self.tuple_to_tensor])
         self.dates = dates
         self.base_dir = Path(base_dir)
         self.pad_value = pad_value
@@ -79,23 +80,7 @@ class ChipletBlock(TransformBlock):
 
         return paths
 
-    def tuple_to_tensor(self, item:Chiplet):
-        arrays = []
-        print('item', item)
-        print('self.base_dir', self.base_dir)
-        for path in self.get_paths(item):
-            data = np.load(path, allow_pickle=True)
-            arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
-
-        print('path', path)
-        print('data.dtype', data["data"].dtype)
-        print('len(arrays)', len(arrays))
-        if self.pad and len(arrays) < self.time_dims:
-            arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))
-
-        assert len(arrays) == self.time_dims
-
-        return torch.cat(arrays)
+    # def tuple_to_tensor(self, item:Chiplet):
 
     def get_position(self, item:Chiplet):
         paths = self.get_paths(item)
@@ -103,3 +88,19 @@ class ChipletBlock(TransformBlock):
         path = paths[0]
         data = np.load(path, allow_pickle=True)
         return data["position"]
+    
+    def __call__(self, item:Chiplet):        
+        arrays = []
+        for path in self.get_paths(item):
+            data = np.load(path, allow_pickle=True)
+            arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+
+        if self.pad and len(arrays) < self.time_dims:
+            arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))
+
+        assert len(arrays) == self.time_dims
+
+        data = torch.cat(arrays)
+        if isinstance(data, torch.ByteTensor):
+            data = data.int()
+        return data
