@@ -11,6 +11,8 @@ import torch.nn.functional as F
 
 from polytorch import PolyEmbedding, PolyData, split_tensor, total_size
 
+from torchvision.models import resnet18
+from fastai.vision.learner import create_unet_model
 
 def time_distributed_combine(x):
     batch_size = x.shape[0]
@@ -306,7 +308,7 @@ class ResnetSpatialEncoder(nn.Module):
         return x, initial, l1, l2, l3, l4
 
 
-class EcoFutureModel(nn.Module):
+class EcoFutureModelTIME(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
@@ -383,6 +385,53 @@ class EcoFutureModel(nn.Module):
 
         # Decoding
         decoded = self.decoder(initial, l1, l2, l3, l4)
+
+        # Split into tuple
+        return split_tensor(decoded, self.output_types, feature_axis=2)
+
+
+class EcoFutureModelUNet(nn.Module):
+    def __init__(
+        self,
+        input_types=List[PolyData],
+        output_types=List[PolyData],
+        embedding_size:int=16,        
+        encoder_resent:ResNet|str=ResNet.resnet18,
+        encoder_weights:str="DEFAULT",
+        temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
+        decoder_type:DecoderType|str=DecoderType.UNET,
+        temporal_layers:int=2,
+        temporal_size:int=512,
+        temporal_bias:bool=True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        self.unet = create_unet_model(
+            arch=resnet18, 
+            n_out=out_channels, 
+            img_size=(160,160), 
+            pretrained=True, 
+            cut=None, 
+            n_in=embedding_size
+        )
+
+    def forward(self, *inputs):
+        # Embedding
+        x = self.embedding(*inputs)
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+
+        decoded = self.unet(x)
+
+        decoded = decoded.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 
         # Split into tuple
         return split_tensor(decoded, self.output_types, feature_axis=2)

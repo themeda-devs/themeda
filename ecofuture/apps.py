@@ -19,7 +19,7 @@ from polytorch import CategoricalData, ContinuousData, OrdinalData, PolyLoss
 from polytorch.metrics import categorical_accuracy, smooth_l1
 
 from .dataloaders import TPlus1Callback, get_chiplets_list
-from .models import ResNet, TemporalProcessorType, EcoFutureModel
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet
 from .transforms import ChipletBlock
 from .metrics import smooth_l1_rain, smooth_l1_tmax
 
@@ -169,7 +169,7 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
-        return EcoFutureModel(
+        return EcoFutureModelUNet(
             input_types=self.input_types,
             output_types=self.output_types,
             embedding_size=embedding_size,
