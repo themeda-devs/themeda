@@ -1,5 +1,6 @@
 # -*- coding: future_typing -*-
 
+import torch
 from pathlib import Path
 from torch import nn
 from functools import partial
@@ -196,10 +197,20 @@ class EcoFuture(ta.TorchApp):
     ):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
+    def inference_dataloader(self, learner, base_dir:Path=None, max_chiplets:int=None, num_workers:int=None, **kwargs):
+        chiplets = get_chiplets_list(base_dir, max_chiplets)
+        dataloader = learner.dls.test_dl(chiplets, num_workers=num_workers, **kwargs)
+        return dataloader
+    
     def output_results(
         self,
         results,
     ):
+
+        for item in results[0][0]:
+            for timestep, values in enumerate(item):
+                predictions = torch.argmax(values, dim=0)
+                torch.save(predictions, f"level4.{timestep}.pkl")
         return results
 
     def metrics(self):

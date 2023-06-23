@@ -65,10 +65,12 @@ class ChipletBlock():
         self.pad = pad
 
     def get_paths(self, item:Chiplet):
+        self.base_dir = Path("/data/gpfs/projects/punim1932/Data/chiplets2000/", self.base_dir.name) # HACK
         paths = [
             self.base_dir/f"ecofuture_chiplet_{self.base_dir.name}_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
             for date in self.dates
         ]
+        print(paths)
 
         # filter for paths that exist
         paths = [path for path in paths if path.exists()]
@@ -89,11 +91,14 @@ class ChipletBlock():
         data = np.load(path, allow_pickle=True)
         return data["position"]
     
-    def __call__(self, item:Chiplet):        
+    def __call__(self, item:Chiplet):   
+        print('item', item)
         arrays = []
         for path in self.get_paths(item):
             data = np.load(path, allow_pickle=True)
             arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+
+        assert len(arrays) != 0, f"Number of timesteps is zero for chiplet {item}"
 
         if self.pad and len(arrays) < self.time_dims:
             arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))
