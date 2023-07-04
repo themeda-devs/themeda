@@ -24,6 +24,10 @@ module load python/3.9.6
 # module load cuda/11.6.0
 module load web_proxy/latest
 
+# Just for debugging
+export CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
+
+
 # unzip to ssd
 #export UNZIP_DISABLE_ZIPBOMB_DETECTION=true
 #export CHIPLET_DIR=/tmp/chiplets
@@ -37,8 +41,5 @@ module load web_proxy/latest
 #    done
 #done
 
-export CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
-
-# export CHIPLET_DIR=../Data/old/chiplets2000/
 
 poetry run python scripts/rain-persistence.py $CHIPLET_DIR/rain
