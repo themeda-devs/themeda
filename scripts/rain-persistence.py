@@ -18,14 +18,25 @@ def main(
     chiplets = get_chiplets_list(chiplet_dir, max_chiplets)
     dates = get_dates(start=start, end=end, interval=interval)        
 
-    block = ChipletBlock(base_dir=chiplet_dir, dates=dates, max_years=max_years)
+    block = ChipletBlock(base_dir=chiplet_dir, dates=dates, max_years=max_years, pad=False)
 
     persistence_total = 0.0
+    total = 0.0
+    pixel_count = 0
+
     with open("rain-persistence.csv", "w") as f:
         print("subset", "id", "x", "y", "persistence_mean", sep=",", file=f)
         for chiplet in track(chiplets, "Chiplets:"):
             position = block.get_position(chiplet)
-            t = block.tuple_to_tensor(chiplet)
+            breakpoint()
+            t = block(chiplet)
+
+            # After you've found the mean and standard deviation
+            # We can normalise the value
+            # t = (t - mean)/std
+
+            total += t.mean()
+
             time_t_plus_1 = t[1:]
             time_t = t[:-1]
             persistent = F.smooth_l1_loss(time_t, time_t_plus_1)
@@ -33,6 +44,11 @@ def main(
             persistence_mean = persistent.float().mean().item()
             persistence_total += persistence_mean
             print(chiplet.subset, chiplet.id, position[0], position[1], persistence_mean, sep=",", file=f, flush=True)
+
+    chiplet_count = len(chiplets)
+    mean = total/chiplet_count
+    print("mean", mean)
+    #print("std", std)
 
     print("persistence:", persistence_total/len(chiplets))
 
