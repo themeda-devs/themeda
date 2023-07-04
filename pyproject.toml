@@ -32,6 +32,11 @@ gputil = "^1.4.0"
 plotly = "^5.15.0"
 statsmodels = "^0.14.0"
 openpyxl = "^3.1.2"
+requests = "^2.31.0"
+boto3 = "^1.26.161"
+netcdf4 = "^1.6.4"
+tqdm = "^4.65.0"
+pyyaml = "^6.0"
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -50,6 +55,10 @@ sphinx-click = {git = "https://github.com/rbturnbull/sphinx-click.git"}
 mypy = "^1.3.0"
 ruff = "^0.0.267"
 jupyter = "^1.0.0"
+types-tqdm = "^4.65.0.1"
+boto3-stubs = {extras = ["s3"], version = "^1.26.161"}
+types-requests = "^2.31.0.1"
+types-pyyaml = "^6.0.12.10"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -63,7 +72,8 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 ecofuture = "ecofuture.apps:EcoFuture.main"
-ecofuture_preproc = "ecofuture.preproc:run"
+ecofuture_preproc = "ecofuture.preproc.cli:run"
+ecofuture_preproc_spartan = "ecofuture.preproc.spartan:run"
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"
@@ -82,11 +92,15 @@ warn_return_any = true
 no_implicit_reexport = true
 strict_equality = true
 strict_concatenate = true
+# except for this
+allow_redefinition = true
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 module = [
         "geojson",
         "shapely",
+	"rasterio",
 ]
 ignore_missing_imports = true
 
