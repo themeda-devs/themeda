@@ -68,16 +68,16 @@ The "Herbaceous" category comprises four sub-categories, each displaying distinc
 
 2. **Herbaceous Open 40:** The "Herbaceous Open 40" sub-category maintains a relatively stable and significant coverage of about 5% throughout the analyzed period. This suggests a consistent occurrence of open herbaceous vegetation, which contributes significantly to the overall land cover composition.
 
-    ![W0 Trendline](../visualisations/Woody_Open_40.png)
+    ![W0 Trendline](../visualisations/HO_40.png)
 
 3. **Herbaceous Open 15:** The "Herbaceous Open 15" sub-category exhibits an increasing trend over time. Starting at 25% in the initial years, the proportion of this sub-category steadily rises to reach approximately 32% by 2020. Notably, there is significant variability within this sub-category, with certain years witnessing herbaceous open coverage surpassing 40%. For instance, in 2011, the proportion of herbaceous open land reached almost 46%. These fluctuations indicate variations in the presence of herbaceous open vegetation across different years.
 
-    ![W0 Trendline](../visualisations/Woody_Open_40.png)
+    ![W0 Trendline](../visualisations/HO_15.png)
 
 
 4. **Herbaceous Sparse:** The "Herbaceous Sparse" sub-category demonstrates a slight decreasing trend. Beginning at 17% in the earlier years, the percentage of this sub-category gradually declines to approximately 11.5% by 2020. However, similar to the "Herbaceous Open 15" sub-category, there is notable variability within this category as well, with certain years recording proportions close to 25% of herbaceous sparse land cover.
 
-    ![W0 Trendline](../visualisations/Woody_Open_40.png)
+    ![W0 Trendline](../visualisations/HS.png)
 
 
 Overall, the "Herbaceous" category stands out as a significant component of the land cover composition. Several sub-categories, such as "Herbaceous Open 40" and "Herbaceous Open 15," exhibit substantial percentages, indicating a significant presence of herbaceous vegetation in the landscape. The observed fluctuations within these sub-categories emphasize the dynamic nature of herbaceous land cover over the analyzed period.
