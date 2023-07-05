@@ -16,11 +16,12 @@ import dateutil.parser
 from dateutil import rrule
 from fastai.data.block import TransformBlock
 
-from polytorch import CategoricalData, ContinuousData, OrdinalData, PolyLoss
-from polytorch.metrics import categorical_accuracy, smooth_l1
+from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss
+from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou
+from polytorch.enums import BinaryDataLossType
 
-from .dataloaders import TPlus1Callback, get_chiplets_list
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet
+from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel
 from .transforms import ChipletBlock
 from .metrics import smooth_l1_rain, smooth_l1_tmax
 
@@ -104,6 +105,7 @@ class EcoFuture(ta.TorchApp):
         max_years:int=None,
         batch_size:int = ta.Param(default=1, help="The batch size."),
         validation_subset:int=1,
+        predict_persistance:bool=False,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
@@ -126,7 +128,7 @@ class EcoFuture(ta.TorchApp):
             directory = Path(directory)
             if not directory.exists:
                 raise FileNotFoundError(f"Cannot find directory {directory}")
-            print(directory)
+
             getters.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
             blocks.append(TransformBlock)
 
@@ -138,6 +140,11 @@ class EcoFuture(ta.TorchApp):
 
         # hack
         self.output_types = self.input_types
+        
+        # hack
+        self.predict_persistance = predict_persistance
+        if predict_persistance and isinstance(self.output_types[0], CategoricalData):
+            self.output_types = [BinaryData(loss_type=BinaryDataLossType.DICE)] + self.output_types[1:]
 
         assert len(getters) > 0, "At least one of level4, rain or tmax must be given a valid directory."
 
@@ -163,6 +170,8 @@ class EcoFuture(ta.TorchApp):
         embedding_size:int=ta.Param(16, help="The number of embedding dimensions."),
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
+        fastai_unet:bool=False,
+        dropout:float=0.0,    
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
@@ -170,16 +179,22 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
-        return EcoFutureModelUNet(
+        ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
+        return ModelClass(
             input_types=self.input_types,
             output_types=self.output_types,
             embedding_size=embedding_size,
             encoder_resent=encoder_resent,
             temporal_processor_type=temporal_processor_type,
+            dropout=dropout,
         )
     
     def extra_callbacks(self):
-        return [TPlus1Callback()]
+        callbacks = [TPlus1Callback()]
+        self.predict_persistance = True # hack
+        if self.predict_persistance:
+            callbacks.append(PredictPersistanceCallback())
+        return callbacks
 
     def loss_func(
         self, 
@@ -215,7 +230,10 @@ class EcoFuture(ta.TorchApp):
 
     def metrics(self):
         return [
-            partial(categorical_accuracy, data_index=0, feature_axis=2),
+            # partial(categorical_accuracy, data_index=0, feature_axis=2),
+            partial(binary_accuracy, data_index=0, feature_axis=2), # hack
+            partial(binary_dice, data_index=0, feature_axis=2), # hack
+            partial(binary_iou, data_index=0, feature_axis=2), # hack
             smooth_l1_rain,
             smooth_l1_tmax,
         ]

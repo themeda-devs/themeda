@@ -16,6 +16,12 @@ class TPlus1Callback(Callback):
         self.learn.yb = tuple(x[:,1:] for x in xb)
 
 
+class PredictPersistanceCallback(Callback):
+    def before_batch(self):
+        persistance = self.learn.yb[0] == self.learn.xb[0] # check if the t+1 value is the same as the value at time t
+        self.learn.yb = (persistance.int(),) + (self.learn.yb[1:])
+
+
 def get_chiplets_list(chiplet_dir:Path, max_chiplets:int=0):
     chiplets = set()
     for path in Path(chiplet_dir).glob("*.npz"):

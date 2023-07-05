@@ -187,6 +187,7 @@ class UNetDecoder(nn.Module):
         out_channels:int,
         kernel_size:int=3,
         final_upsample_dims:int=16,
+        dropout:float=0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -220,6 +221,7 @@ class UNetDecoder(nn.Module):
             out_channels=in_channels//32, 
             resblock_kernel_size=kernel_size
         )
+        self.dropout = nn.Dropout(dropout)
         self.final_layer = Conv(
             in_channels=final_upsample_dims+initial, 
             out_channels=out_channels, 
@@ -234,6 +236,12 @@ class UNetDecoder(nn.Module):
         l2, _, _, _ = time_distributed_combine(l2)
         l3, _, _, _ = time_distributed_combine(l3)
         initial, _, _, _ = time_distributed_combine(initial)
+
+        x = self.dropout(x)
+        l1 = self.dropout(l1)
+        l2 = self.dropout(l2)
+        l3 = self.dropout(l3)
+        initial = self.dropout(initial)
 
         x = self.upblock3(x,l3)
         x = self.upblock2(x,l2)
@@ -308,7 +316,7 @@ class ResnetSpatialEncoder(nn.Module):
         return x, initial, l1, l2, l3, l4
 
 
-class EcoFutureModelTIME(nn.Module):
+class EcoFutureModel(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
@@ -321,6 +329,7 @@ class EcoFutureModelTIME(nn.Module):
         temporal_layers:int=2,
         temporal_size:int=512,
         temporal_bias:bool=True,
+        dropout:float=0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -362,10 +371,10 @@ class EcoFutureModelTIME(nn.Module):
         if decoder_type == "NONE":
             self.decoder = None
         elif decoder_type == "UNET":
-            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=embedding_size)
+            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=embedding_size, dropout=dropout)
         else:
             raise ValueError(f"Cannot recognize decoder type {decoder_type}")
-
+    
     def forward(self, *inputs):
         # Embedding
         x = self.embedding(*inputs)
