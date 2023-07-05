@@ -41,7 +41,11 @@ for year, data, position in chiplet_data:
 
 ### <ins>Hypothesis Testing</ins>
 
-For each chip position, hypothesis testing was performed to compare the tfid distributions between consecutive years using the chi-square test. The significance level (alpha) was set to determine the threshold for rejecting the null hypothesis. The following Python code snippet showcases the hypothesis testing approach:
+To investigate the variations in tfid distributions of chips over consecutive years, we employed hypothesis testing using the chi-square test. The chi-square test allows us to assess whether there are significant differences in tfid distributions between pairs of consecutive years.
+
+**Null Hypothesis:** The null hypothesis (H0) states that there is no significant difference in tfid distributions between consecutive years for a given chip position. It suggests that any observed differences are due to random variation or sampling error.
+
+**Alternative Hypothesis:** The alternative hypothesis (HA) states that there is a significant difference in tfid distributions between consecutive years for a given chip position. It suggests that the observed differences are not purely due to chance but reflect genuine changes in the distribution over time.
 
 ```python
 # Perform hypothesis testing for each chip position
@@ -49,7 +53,7 @@ failed_hypothesis = 0
 total_hypothesis = 0
 
 # Iterate over each chip position
-for position, distributions in list(position_distributions.items())[:10]:
+for position, distributions in list(position_distributions.items()):
     n_years = len(distributions)
     
     # Iterate over consecutive years for each chip position
@@ -79,8 +83,7 @@ for position, distributions in list(position_distributions.items())[:10]:
 
 ```
 
-1. **Chip Position Iteration:** The code iterates over each chip position, considering only the first 10 positions for brevity.
-
+1. **Chip Position Iteration:** The code iterates over each chip position. 
 2. **Consecutive Year Iteration:** For each chip position, the code iterates over the consecutive years from the available distributions.
 
 3. **Contingency Table Creation:** A contingency table is created to compare the tfid distributions of two consecutive years. The table is constructed by combining unique tfids from both distributions and calculating the counts for each tfid.
@@ -101,13 +104,15 @@ The hypothesis testing results revealed the following:
 
 1. <ins>Overall Findings:</ins> Across the selected chip positions, there were significant variations observed in the tfid distributions from year to year.
 
-2. <ins>Significance Level (alpha) = 0.05:</ins> When using the default significance level of 0.05, all hypothesis tests resulted in a failure to accept the null hypothesis, indicating significant differences in the tfid distributions between consecutive years.
+2. <ins>Significance Level (alpha) = 0.05:</ins> When using the default significance level of 0.05, 99.9% hypothesis tests resulted in a failure to accept the null hypothesis, indicating significant differences in the tfid distributions between consecutive years.
 
-3. <ins>Significance Level (alpha) = 0.3:</ins> Even when adjusting the significance level to a higher value of 0.3, the hypothesis tests continued to result in a 100% failure rate. This further confirms the presence of substantial variations in the tfid distributions over time.
+3. <ins>Significance Level (alpha) = 0.3:</ins> Even when adjusting the significance level to a higher value of 0.3, the hypothesis tests continued to result in a 99.9 failure rate. This further confirms the presence of substantial variations in the tfid distributions over time.
 
 ## **Conclusion**
 
-Based on the hypothesis testing conducted, it can be concluded that the tfid distributions of chips in the Savannah region exhibit significant variations from chip to chip and year to year. These findings highlight the dynamic nature of the tfid distributions and emphasize the need to consider temporal variations when analyzing and interpreting satellite image data.
+Upon comparing the obtained p-values with the significance level, we find that the null hypothesis can be rejected for a substantial proportion of the tested chip positions. This indicates that there are significant changes in the tfid distributions between consecutive years, suggesting temporal variations in land cover categories within these positions.
+
+The rejection of the null hypothesis supports the presence of meaningful differences in the distribution of tfids over time, implying that factors such as environmental changes or land use dynamics may contribute to these observed variations.These findings highlight the dynamic nature of the tfid distributions and emphasize the need to consider temporal variations when analyzing and interpreting satellite image data.
 
 The observed variations provide valuable insights for further analysis and modeling in the context of land cover classification and monitoring in the Savannah region.
 
