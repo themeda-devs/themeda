@@ -55,7 +55,7 @@ def plot_level4_chiplet(chiplet:Path|str, **kwargs):
     return plot_level4(data["data"], **kwargs)
 
 
-def plot_chiplet_location(chiplet:Path|str, **kwargs):
+def plot_chiplet_location(chiplet:Path|str, projection_scale:int=10):
     chiplet = Path(chiplet)
     if not chiplet.exists():
         raise FileNotFoundError(f"Cannot find chiplet {chiplet}")
@@ -72,15 +72,14 @@ def plot_chiplet_location(chiplet:Path|str, **kwargs):
         opacity=1.0,
         width=1200,
         height=600,
-        # zoom=4,
     )
-    # fig.update_geos(lataxis_range=list(df["lat"].quantile([0.01, 0.99])), lonaxis_range=list(df["lon"].quantile([0.01, 0.99])))
-    fig.update_traces(marker=dict(size=2, symbol="square"))
+
     fig.update_layout(
-            geo = dict(
-                projection_scale=10, #this is kind of like zoom
-                center=dict(lat=latitude, lon=longitude), # this will center on the point
-            ))
+        geo = dict(
+            projection_scale=projection_scale,
+            center=dict(lat=latitude, lon=longitude),
+        )
+    )
     fig.update_traces(marker=dict(size=10), marker_color="red", marker_symbol="circle")
 
     format_fig(fig)
