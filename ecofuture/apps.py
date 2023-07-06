@@ -19,6 +19,7 @@ from fastai.data.block import TransformBlock
 from polytorch import CategoricalData, ContinuousData, OrdinalData, PolyLoss
 from polytorch.metrics import categorical_accuracy, smooth_l1
 
+from .colours import LEVEL4_COLOURS
 from .dataloaders import TPlus1Callback, get_chiplets_list
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet
 from .transforms import ChipletBlock
@@ -132,52 +133,7 @@ class EcoFuture(ta.TorchApp):
 
             # hack
             if directory.name == "level4":
-                self.input_types.append(CategoricalData(21, labels=[
-                    "No data",
-                    "Cultivated closed",
-                    "Cultivated open 40",
-                    "Cultivated open 15",
-                    "Cultivated sparse",
-                    "Woody closed",
-                    "Woody open 40",
-                    "Woody open 15",
-                    "Woody sparse",
-                    "Herbaceous closed",
-                    "Herbaceous open 40",
-                    "Herbaceous open 15",
-                    "Herbaceous sparse",
-                    "Aquatic Woody closed",
-                    "Aquatic Woody open",
-                    "Aquatic Woody sparse to open",
-                    "Aquatic Herbaceous",
-                    "Artificial Surface",
-                    "Natural Bare ground",
-                    "Water",
-                    "Water 1 to 6 months",                    
-                ],
-                colors=[
-                    "Black",
-                    "#8D9316",
-                    "#B4BC1C",
-                    "#DAE422",
-                    "#F4FD60",
-                    "#784E07",
-                    "#A46B0A",
-                    "#CE880F",
-                    "#F6A415",
-                    "#17610D",
-                    "#268F18",
-                    "#35C222",
-                    "#42FB29",
-                    "#167867",
-                    "#23BEA3",
-                    "#2EF6D3",
-                    "#0092A2",
-                    "#777777",
-                    "#FFE1A8",
-                    "#336BFF",
-                    "#A8BFFF",
-                ]))
+                self.input_types.append(CategoricalData(21, labels=LEVEL4_COLOURS.keys(), colors=LEVEL4_COLOURS.values()))
             elif directory.name in ["rain", "tmax"]:
                 self.input_types.append(ContinuousData(name=directory.name.title()))
 
