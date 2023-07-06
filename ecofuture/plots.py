@@ -1,5 +1,6 @@
 import numpy as np
 from pathlib import Path
+import plotly.express as px
 import plotly.graph_objects as go
 
 from polytorch.plots import format_fig
@@ -52,3 +53,36 @@ def plot_level4_chiplet(chiplet:Path|str, **kwargs):
         raise FileNotFoundError(f"Cannot find chiplet {chiplet}")
     data = np.load(chiplet)
     return plot_level4(data["data"], **kwargs)
+
+
+def plot_chiplet_location(chiplet:Path|str, **kwargs):
+    chiplet = Path(chiplet)
+    if not chiplet.exists():
+        raise FileNotFoundError(f"Cannot find chiplet {chiplet}")
+    data = np.load(chiplet)
+
+    from pyproj import Transformer
+    transformer = Transformer.from_crs("EPSG:3577", "latlon", always_xy=True)
+    longitude, latitude = transformer.transform(data['position'][0],data['position'][1])
+
+    fig = px.scatter_geo(
+        lat=[latitude],
+        lon=[longitude],
+        projection="mercator",
+        opacity=1.0,
+        width=1200,
+        height=600,
+        # zoom=4,
+    )
+    # fig.update_geos(lataxis_range=list(df["lat"].quantile([0.01, 0.99])), lonaxis_range=list(df["lon"].quantile([0.01, 0.99])))
+    fig.update_traces(marker=dict(size=2, symbol="square"))
+    fig.update_layout(
+            geo = dict(
+                projection_scale=10, #this is kind of like zoom
+                center=dict(lat=latitude, lon=longitude), # this will center on the point
+            ))
+    fig.update_traces(marker=dict(size=10), marker_color="red", marker_symbol="circle")
+
+    format_fig(fig)
+
+    return fig
