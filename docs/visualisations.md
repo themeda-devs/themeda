@@ -12,7 +12,7 @@ It is noteworthy that throughout the analyzed period, the category "No Data" rep
 
 ### <ins>Cultivated</ins>
 
-The "Cultivated" category comprises four sub-categories, each exhibiting distinct trends over time. While these sub-categories represent specific variations within cultivated land, none of them have a significant influence on the overall analysis.
+The "Cultivated" category comprises four sub-categories, each exhibiting distinct trends over time. While these sub-categories represent specific variations within cultivated land, none of them have a significant influence on the overall analysis. Question - do you mean due to the small total area in any cultivated class? 
 
 1. **Cultivated Closed**: This sub-category shows a consistent and uniform trend, maintaining a low percentage of approximately 0.1% throughout the analyzed period. The maximum value observed is 0.3%. The stability in the trendline suggests a relatively steady presence of cultivated close land without substantial variations. 
    
