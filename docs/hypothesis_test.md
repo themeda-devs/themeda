@@ -41,56 +41,44 @@ for year, data, position in chiplet_data:
 
 ### <ins>Hypothesis Testing</ins>
 
-To investigate the variations in tfid distributions of chips over consecutive years, we employed hypothesis testing using the chi-square test. The chi-square test allows us to assess whether there are significant differences in tfid distributions between pairs of consecutive years.
+To investigate the variations in tfid distributions of chips over consecutive years, we employed hypothesis testing using the Kruskal-Wallis test. The Kruskal-Wallis test allows us to assess whether there are significant differences in tfid distributions between pairs of consecutive years.
 
 **Null Hypothesis:** The null hypothesis (H0) states that there is no significant difference in tfid distributions between consecutive years for a given chip position. It suggests that any observed differences are due to random variation or sampling error.
 
 **Alternative Hypothesis:** The alternative hypothesis (HA) states that there is a significant difference in tfid distributions between consecutive years for a given chip position. It suggests that the observed differences are not purely due to chance but reflect genuine changes in the distribution over time.
 
 ```python
-# Perform hypothesis testing for each chip position
+from scipy.stats import kruskal
+
 failed_hypothesis = 0
 total_hypothesis = 0
+alpha = 0.05
 
-# Iterate over each chip position
 for position, distributions in list(position_distributions.items()):
     n_years = len(distributions)
-    
-    # Iterate over consecutive years for each chip position
     for i in range(n_years - 1):
         distribution1 = distributions[i]
         distribution2 = distributions[i + 1]
 
-        # Create a contingency table for the chi-square test
-        contingency_table = []
-        
-        # Combine unique tfids from both distributions
-        unique_tfids = set(distribution1.keys()).union(distribution2.keys())
-        
-        # Calculate the counts for each tfid in the contingency table
-        for tfid in unique_tfids:
-            count1 = distribution1.get(tfid, 0)
-            count2 = distribution2.get(tfid, 0)
-            contingency_table.append([count1, count2])
+        # Extract tfid values from the distributions
+        tfid_values1 = list(distribution1.keys())
+        tfid_values2 = list(distribution2.keys())
 
-        # Perform the chi-square test
-        chi2, p_value, _, _ = chi2_contingency(contingency_table)
+        # Perform the Kruskal-Wallis test
+        _, p_value = kruskal(tfid_values1, tfid_values2)
 
         # Compare the p-value with the significance level
         if p_value < alpha:
             failed_hypothesis += 1
         total_hypothesis += 1
-
 ```
 
-1. **Chip Position Iteration:** The code iterates over each chip position. 
+1. **Chip Position Iteration:** The code iterates over each chip position.
 2. **Consecutive Year Iteration:** For each chip position, the code iterates over the consecutive years from the available distributions.
 
-3. **Contingency Table Creation:** A contingency table is created to compare the tfid distributions of two consecutive years. The table is constructed by combining unique tfids from both distributions and calculating the counts for each tfid.
+3. **Kruskal-Wallis Test** The kruskal function from scipy.stats is used to perform the Kruskal-Wallis test on the tfid values of two consecutive years. This test evaluates whether there is a significant difference in the distributions.
 
-4. **Chi-Square Test:** The chi2_contingency function from scipy.stats is used to perform the chi-square test on the contingency table. This test evaluates whether there is a significant association between the tfid distributions of two consecutive years.
-
-5. **P-value Comparison:** The resulting p-value is compared with the predefined significance level (alpha) to determine if the null hypothesis should be rejected. If the p-value is less than alpha, it indicates significant differences in the tfid distributions.
+4. **P-value Comparison:** The resulting p-values are compared with the predefined significance level (alpha) to determine if the null hypothesis should be rejected. If the p-value is less than alpha, it indicates significant differences in the tfid distributions.
 
 6. **Failed Hypothesis Count:** If the p-value is less than alpha, indicating a rejection of the null hypothesis, the failed_hypothesis counter is incremented.
 
@@ -102,17 +90,19 @@ By tracking the number of failed hypothesis tests and the total number of tests,
 
 The hypothesis testing results revealed the following:
 
-1. <ins>Overall Findings:</ins> Across the selected chip positions, there were significant variations observed in the tfid distributions from year to year.
+1. <ins>Overall Findings:</ins> Across the selected chip positions, there wasn't significant variations observed in the tfid distributions from year to year.
 
-2. <ins>Significance Level (alpha) = 0.05:</ins> When using the default significance level of 0.05, 99.9% hypothesis tests resulted in a failure to accept the null hypothesis, indicating significant differences in the tfid distributions between consecutive years.
+2. <ins>Significance Level (alpha) = 0.05:</ins> When using a significance level of 0.05, approximately 26.41% of the hypothesis tests resulted in a failure to accept the null hypothesis, indicating significant differences in the tfid distributions between consecutive years. Contrary to the significant differences, approximately 73.59% of the tested chip positions did not exhibit significant differences in tfid distributions between consecutive years. This suggests that the tfid distributions remained relatively consistent over time for a majority of the chips.
 
-3. <ins>Significance Level (alpha) = 0.3:</ins> Even when adjusting the significance level to a higher value of 0.3, the hypothesis tests continued to result in a 99.9 failure rate. This further confirms the presence of substantial variations in the tfid distributions over time.
+3. <ins>Significance Level (alpha) = 0.3:</ins> When using a lower significance level of 0.01, the percentage of failed hypothesis tests decreased to 0.17%. 
 
 ## **Conclusion**
 
-Upon comparing the obtained p-values with the significance level, we find that the null hypothesis can be rejected for a substantial proportion of the tested chip positions. This indicates that there are significant changes in the tfid distributions between consecutive years, suggesting temporal variations in land cover categories within these positions.
+The hypothesis testing results indicate that while there are significant differences in tfid distributions for a subset of the chips, the majority of the tested chip positions showed consistent tfid distributions over consecutive years. Approximately 73.59% of the chips did not reject the null hypothesis, implying a similarity in tfid distributions from year to year.
 
-The rejection of the null hypothesis supports the presence of meaningful differences in the distribution of tfids over time, implying that factors such as environmental changes or land use dynamics may contribute to these observed variations.These findings highlight the dynamic nature of the tfid distributions and emphasize the need to consider temporal variations when analyzing and interpreting satellite image data.
+These findings suggest that, for a significant portion of the chips, the land cover categories within the Savannah region exhibit stability and continuity over time. However, it is important to note that the rejected null hypothesis for the remaining 26.41% of the chips highlights the presence of temporal variations and dynamics in land cover categories.
 
-The observed variations provide valuable insights for further analysis and modeling in the context of land cover classification and monitoring in the Savannah region.
+These results provide valuable insights into the degree of similarity and variation in tfid distributions and emphasize the need to consider both significant and non-significant differences when analyzing and interpreting the satellite image data. Further investigations and analysis can be performed to understand the factors contributing to both the stability and changes observed in the tfid distributions.
+
+Please note that these conclusions are based on the specific dataset and methodology employed in this study. Further research and consideration may be necessary to generalize these findings to other regions or datasets.
 
