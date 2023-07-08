@@ -90,6 +90,8 @@ class ChipletBlock():
         return data["position"]
     
     def __call__(self, item:Chiplet):   
+        self.base_dir = Path("../Data/chiplets2000/", self.base_dir.name) ## hack
+        self.pad = False # hack
         arrays = []
         for path in self.get_paths(item):
             data = np.load(path, allow_pickle=True)

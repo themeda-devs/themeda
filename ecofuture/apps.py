@@ -213,19 +213,25 @@ class EcoFuture(ta.TorchApp):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
     def inference_dataloader(self, learner, base_dir:Path=None, max_chiplets:int=None, num_workers:int=None, **kwargs):
-        chiplets = get_chiplets_list(base_dir, max_chiplets)
-        dataloader = learner.dls.test_dl(chiplets, num_workers=num_workers, **kwargs)
+        self.inference_chiplets = get_chiplets_list(base_dir, max_chiplets)
+        from .transforms import Chiplet # hack
+        self.inference_chiplets = [Chiplet(subset=2, id="00010460.npz")]# hack
+        dataloader = learner.dls.test_dl(self.inference_chiplets, num_workers=num_workers, **kwargs)
         return dataloader
     
     def output_results(
         self,
         results,
     ):
-
-        for item in results[0][0]:
+        for chiplet, item in zip(self.inference_chiplets, results[0][0]):
+            
             for timestep, values in enumerate(item):
                 predictions = torch.argmax(values, dim=0)
-                torch.save(predictions, f"level4.{timestep}.pkl")
+                # Save in same format as chiplet input?
+                filename = f"level4.{chiplet.subset}.{chiplet.id}.{timestep}.pkl"
+                print(f"saving to {filename}")
+                torch.save(values, filename)
+
         return results
 
     def metrics(self):
