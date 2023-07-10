@@ -10,7 +10,10 @@ class TPlus1Callback(Callback):
     def before_batch(self):
         xb = self.xb
         # normalisation hack
-        xb = (xb[0], xb[1]/2000.0, xb[2]/40.0)
+        if len(xb) == 3:
+            xb = (xb[0], xb[1]/2000.0, xb[2]/40.0)
+        if len(xb) == 2:
+            xb = (xb[0], xb[1]/2000.0)
         self.learn.xb = tuple(x[:,:-1] for x in xb)
         # self.learn.yb = (xb[0][:,1:],)
         self.learn.yb = tuple(x[:,1:] for x in xb)

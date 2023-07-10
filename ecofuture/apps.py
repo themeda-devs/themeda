@@ -21,7 +21,7 @@ from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, 
 from polytorch.enums import BinaryDataLossType
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModel1x1Conv
 from .transforms import ChipletBlock
 from .metrics import smooth_l1_rain, smooth_l1_tmax
 
@@ -171,6 +171,7 @@ class EcoFuture(ta.TorchApp):
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
         fastai_unet:bool=False,
+        onebyone:bool=False,
         dropout:float=0.0,    
     ) -> nn.Module:
         """
@@ -179,7 +180,11 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
-        ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
+        if onebyone:
+            ModelClass = EcoFutureModel1x1Conv
+        else:
+            ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
+
         return ModelClass(
             input_types=self.input_types,
             output_types=self.output_types,
@@ -235,11 +240,19 @@ class EcoFuture(ta.TorchApp):
         return results
 
     def metrics(self):
-        return [
-            # partial(categorical_accuracy, data_index=0, feature_axis=2),
-            partial(binary_accuracy, data_index=0, feature_axis=2), # hack
-            partial(binary_dice, data_index=0, feature_axis=2), # hack
-            partial(binary_iou, data_index=0, feature_axis=2), # hack
-            smooth_l1_rain,
-            smooth_l1_tmax,
-        ]
+        metrics = []
+        if self.level4:
+            metrics += [
+                # partial(categorical_accuracy, data_index=0, feature_axis=2),
+                partial(binary_accuracy, data_index=0, feature_axis=2), # hack
+                partial(binary_dice, data_index=0, feature_axis=2), # hack
+                partial(binary_iou, data_index=0, feature_axis=2), # hack
+            ]
+            
+        if self.rain:
+            metrics.append(smooth_l1_rain)
+
+        if self.tmax:
+            metrics.append(smooth_l1_tmax)
+        
+        return metrics
