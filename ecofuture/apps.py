@@ -13,17 +13,22 @@ from rich.console import Console
 console = Console()
 from enum import Enum
 import dateutil.parser
+from fastai.learner import Learner, load_learner
+
 from dateutil import rrule
+from rich.table import Table
+from rich.box import SIMPLE
+from torchapp.util import call_func
+
 from fastai.data.block import TransformBlock
 
-from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss
-from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou
-from polytorch.enums import BinaryDataLossType
+from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType
+from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModel1x1Conv
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModel1x1Conv, PersistenceModel
 from .transforms import ChipletBlock
-from .metrics import smooth_l1_rain, smooth_l1_tmax
+from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -134,7 +139,7 @@ class EcoFuture(ta.TorchApp):
 
             # hack
             if directory.name == "level4":
-                self.input_types.append(CategoricalData(21))
+                self.input_types.append(CategoricalData(21, loss_type=CategoricalLossType.DICE))
             elif directory.name in ["rain", "tmax"]:
                 self.input_types.append(ContinuousData())
 
@@ -144,7 +149,7 @@ class EcoFuture(ta.TorchApp):
         # hack
         self.predict_persistance = predict_persistance
         if predict_persistance and isinstance(self.output_types[0], CategoricalData):
-            self.output_types = [BinaryData(loss_type=BinaryDataLossType.DICE)] + self.output_types[1:]
+            self.output_types = [BinaryData(loss_type=BinaryLossType.DICE)] + self.output_types[1:]
 
         assert len(getters) > 0, "At least one of level4, rain or tmax must be given a valid directory."
 
@@ -167,6 +172,7 @@ class EcoFuture(ta.TorchApp):
 
     def model(
         self,
+        persistence:bool = ta.Param(False, help='Whether or not to use a basic persistence model.'),
         embedding_size:int=ta.Param(16, help="The number of embedding dimensions."),
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
@@ -180,6 +186,9 @@ class EcoFuture(ta.TorchApp):
         Returns:
             nn.Module: The created model.
         """
+        if persistence:
+            return PersistenceModel(self.input_types)
+        
         if onebyone:
             ModelClass = EcoFutureModel1x1Conv
         else:
@@ -194,9 +203,12 @@ class EcoFuture(ta.TorchApp):
             dropout=dropout,
         )
     
-    def extra_callbacks(self):
+    def extra_callbacks(
+        self, 
+        predict_persistance:bool=False, # hack
+    ):
         callbacks = [TPlus1Callback()]
-        self.predict_persistance = True # hack
+        self.predict_persistance = predict_persistance 
         if self.predict_persistance:
             callbacks.append(PredictPersistanceCallback())
         return callbacks
@@ -241,13 +253,20 @@ class EcoFuture(ta.TorchApp):
 
     def metrics(self):
         metrics = []
+
         if self.level4:
-            metrics += [
-                # partial(categorical_accuracy, data_index=0, feature_axis=2),
-                partial(binary_accuracy, data_index=0, feature_axis=2), # hack
-                partial(binary_dice, data_index=0, feature_axis=2), # hack
-                partial(binary_iou, data_index=0, feature_axis=2), # hack
-            ]
+            if self.predict_persistance:
+                metrics += [
+                    partial(binary_accuracy, data_index=0, feature_axis=2),
+                    partial(binary_dice, data_index=0, feature_axis=2),
+                    partial(binary_iou, data_index=0, feature_axis=2),
+                ]
+            else:
+                metrics += [
+                    partial(categorical_accuracy, data_index=0, feature_axis=2),
+                    partial(kl_divergence_proportions, data_index=0, feature_axis=2),
+                    partial(generalized_dice, data_index=0, feature_axis=2),
+                ]
             
         if self.rain:
             metrics.append(smooth_l1_rain)
@@ -256,3 +275,45 @@ class EcoFuture(ta.TorchApp):
             metrics.append(smooth_l1_tmax)
         
         return metrics
+
+    def validate(
+        self,
+        gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."),
+        persistence:bool = False,
+        **kwargs,
+    ):
+
+        # Check if CUDA is available
+        gpu = gpu and torch.cuda.is_available()
+
+        # Create a dataloader for inference
+        dataloaders = call_func(self.dataloaders, **kwargs)
+
+        if persistence:
+            learner = call_func(self.learner, **kwargs)
+            learner.model = PersistenceModel(self.input_types)
+        else:
+            path = call_func(self.pretrained_local_path, **kwargs)
+
+            try:
+                learner = load_learner(path, cpu=not gpu)
+            except Exception:
+                import dill
+                learner = load_learner(path, cpu=not gpu, pickle_module=dill)
+
+
+        table = Table(title="Validation", box=SIMPLE)
+
+        values = learner.validate(dl=dataloaders.valid, cbs=[TPlus1Callback()])
+        names = [learner.recorder.loss.name] + [metric.name for metric in learner.metrics]
+        result = {name: value for name, value in zip(names, values)}
+
+        table.add_column("Metric", justify="right", style="cyan", no_wrap=True)
+        table.add_column("Value", style="magenta")
+
+        for name, value in result.items():
+            table.add_row(name, str(value))
+
+        console.print(table)
+
+        return result

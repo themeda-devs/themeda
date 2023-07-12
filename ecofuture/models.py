@@ -9,7 +9,7 @@ from enum import Enum
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
-from polytorch import PolyEmbedding, PolyData, split_tensor, total_size
+from polytorch import PolyEmbedding, PolyData, split_tensor, total_size, CategoricalData
 
 from torchvision.models import resnet18
 from fastai.vision.learner import create_unet_model
@@ -479,4 +479,25 @@ class EcoFutureModel1x1Conv(nn.Module):
         return split_tensor(prediction, self.output_types, feature_axis=2)
 
 
+class PersistenceModel(nn.Module):
+    def __init__(
+        self,
+        input_types:List[PolyData],
+        **kwargs,
+    ):
+        super().__init__()
+        self.input_types = input_types
+        self.true_logit_value = 100.0
+        self.dummy = nn.Linear(10,10)
 
+    def forward(self, *inputs):
+        results = []
+        for input, datatype in zip(inputs, self.input_types):
+            if isinstance(datatype, CategoricalData):
+                results.append(
+                    F.one_hot(input.long(), num_classes=datatype.category_count).permute(0,1,4,2,3) * self.true_logit_value
+                )
+            else:
+                results.append(input)
+
+        return tuple(results)
