@@ -30,6 +30,7 @@ def plotly_discrete_colorscale(colors):
 def plot_level4(array, show:bool=False):
     color_scale = plotly_discrete_colorscale(list(LEVEL4_COLOURS.values()))
     labels = list(LEVEL4_COLOURS.keys())
+    labels = [f"{i}: label" for i, label in enumerate(labels)]
     tickvals = np.arange(len(labels))
     heatmap = go.Heatmap(
         z=array, 
