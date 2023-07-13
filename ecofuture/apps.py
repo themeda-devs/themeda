@@ -8,7 +8,7 @@ from fastai.data.core import DataLoaders
 import torchapp as ta
 from fastcore.foundation import mask2idxs
 from fastai.data.block import DataBlock
-from fastai.data.transforms import IndexSplitter
+from fastai.data.transforms import DisplayedTransform, IndexSplitter #, Normalize
 from rich.console import Console
 console = Console()
 from enum import Enum
@@ -26,9 +26,28 @@ from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, Cat
 from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModel1x1Conv, PersistenceModel
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
 from .transforms import ChipletBlock
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
+
+
+MEAN = {'rain': 1193.8077, 'tmax':32.6068}
+STD = {'rain': 394.8365, 'tmax':1.4878}
+
+
+class Normalize(DisplayedTransform):
+    order = 99
+    
+    def __init__(self, mean=None, std=None): 
+        self.mean = mean
+        self.std = std
+
+    def encodes(self, x): 
+        return (x-self.mean) / self.std
+    
+    def decodes(self, x):
+        return x * self.std + self.mean
+
 
 class Interval(Enum):
     DAILY = "DAILY"
@@ -135,13 +154,17 @@ class EcoFuture(ta.TorchApp):
                 raise FileNotFoundError(f"Cannot find directory {directory}")
 
             getters.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
-            blocks.append(TransformBlock)
 
             # hack
             if directory.name == "level4":
-                self.input_types.append(CategoricalData(21, loss_type=CategoricalLossType.DICE))
+                self.input_types.append(CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY))
+                blocks.append(TransformBlock)
+
             elif directory.name in ["rain", "tmax"]:
                 self.input_types.append(ContinuousData())
+                mean = MEAN[directory.name]
+                std = STD[directory.name]
+                blocks.append(TransformBlock(type_tfms=Normalize(mean, std) ))
 
         # hack
         self.output_types = self.input_types
@@ -178,6 +201,7 @@ class EcoFuture(ta.TorchApp):
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
         fastai_unet:bool=False,
         onebyone:bool=False,
+        kernel_size:int=1,
         dropout:float=0.0,    
     ) -> nn.Module:
         """
@@ -190,7 +214,12 @@ class EcoFuture(ta.TorchApp):
             return PersistenceModel(self.input_types)
         
         if onebyone:
-            ModelClass = EcoFutureModel1x1Conv
+            return EcoFutureModelSimpleConv(
+                kernel_size=kernel_size,
+                input_types=self.input_types,
+                output_types=self.output_types,
+                embedding_size=embedding_size,
+            )
         else:
             ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
 

@@ -446,12 +446,13 @@ class EcoFutureModelUNet(nn.Module):
         return split_tensor(decoded, self.output_types, feature_axis=2)
 
 
-class EcoFutureModel1x1Conv(nn.Module):
+class EcoFutureModelSimpleConv(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
         output_types=List[PolyData],
-        embedding_size:int=16,        
+        embedding_size:int=16,    
+        kernel_size:int=1,    
         **kwargs,
     ):
         super().__init__()
@@ -466,7 +467,8 @@ class EcoFutureModel1x1Conv(nn.Module):
         self.conv = nn.Conv2d(
             embedding_size,
             out_channels,
-            kernel_size=1
+            kernel_size=kernel_size,
+            padding="same",
         )
 
     def forward(self, *inputs):
