@@ -8,7 +8,7 @@ from fastai.data.core import DataLoaders
 import torchapp as ta
 from fastcore.foundation import mask2idxs
 from fastai.data.block import DataBlock
-from fastai.data.transforms import DisplayedTransform, IndexSplitter #, Normalize
+from fastai.data.transforms import IndexSplitter 
 from rich.console import Console
 console = Console()
 from enum import Enum
@@ -27,26 +27,12 @@ from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, 
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
-from .transforms import ChipletBlock
+from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
 
 
 MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 STD = {'rain': 394.8365, 'tmax':1.4878}
-
-
-class Normalize(DisplayedTransform):
-    order = 99
-    
-    def __init__(self, mean=None, std=None): 
-        self.mean = mean
-        self.std = std
-
-    def encodes(self, x): 
-        return (x-self.mean) / self.std
-    
-    def decodes(self, x):
-        return x * self.std + self.mean
 
 
 class Interval(Enum):

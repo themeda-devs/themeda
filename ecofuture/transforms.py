@@ -6,10 +6,9 @@ import torch
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from fastai.data.block import TransformBlock
 import rasterio
 from torch import Tensor
-from typing import Dict
+from fastai.data.transforms import DisplayedTransform
 import numpy as np
 
 
@@ -107,3 +106,19 @@ class ChipletBlock():
         if isinstance(data, torch.ByteTensor):
             data = data.int()
         return data
+
+
+class Normalize(DisplayedTransform):
+    order = 99
+    
+    def __init__(self, mean=None, std=None): 
+        self.mean = mean
+        self.std = std
+
+    def encodes(self, x): 
+        return (x-self.mean) / self.std
+    
+    def decodes(self, x):
+        return x * self.std + self.mean
+
+
