@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # To give your job a name, replace "MyJob" with an appropriate name
-#SBATCH --job-name=persistence
+# SBATCH --job-name=tmax-persistence
 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=1
@@ -33,7 +33,7 @@ module load web_proxy/latest
 # unzip to ssd
 export UNZIP_DISABLE_ZIPBOMB_DETECTION=true
 export CHIPLET_DIR=/tmp/chiplets
-for category in rain ; do 
+for category in tmax ; do 
    export CATEGORY_DIR=$CHIPLET_DIR/$category
    mkdir -p $CATEGORY_DIR
    for year in $(seq 1988 2018) ; do 
@@ -44,4 +44,4 @@ for category in rain ; do
 done
 
 
-poetry run python scripts/rain-persistence.py $CHIPLET_DIR/rain
+poetry run python scripts/tmax-persistence.py $CHIPLET_DIR/tmax
