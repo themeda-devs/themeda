@@ -319,8 +319,8 @@ class ResnetSpatialEncoder(nn.Module):
 class EcoFutureModel(nn.Module):
     def __init__(
         self,
-        input_types=List[PolyData],
-        output_types=List[PolyData],
+        input_types:List[PolyData],
+        output_types:List[PolyData] = None,
         embedding_size:int=16,        
         encoder_resent:ResNet|str=ResNet.resnet18,
         encoder_weights:str="DEFAULT",
@@ -338,6 +338,8 @@ class EcoFutureModel(nn.Module):
             embedding_size=embedding_size,
             feature_axis=2,
         )
+
+        output_types = output_types or input_types
         self.output_types = output_types
         out_channels = total_size(output_types)
         
