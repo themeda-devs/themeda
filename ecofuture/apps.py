@@ -186,9 +186,10 @@ class EcoFuture(ta.TorchApp):
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
         fastai_unet:bool=False,
-        onebyone:bool=False,
+        simple:bool=False,
         kernel_size:int=1,
-        dropout:float=0.0,    
+        dropout:float=0.0,   
+        hidden_size:int=0,     # only for simple conv 
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
@@ -199,12 +200,13 @@ class EcoFuture(ta.TorchApp):
         if persistence:
             return PersistenceModel(self.input_types)
         
-        if onebyone:
+        if simple:
             return EcoFutureModelSimpleConv(
                 kernel_size=kernel_size,
                 input_types=self.input_types,
                 output_types=self.output_types,
                 embedding_size=embedding_size,
+                hidden_size=hidden_size,
             )
         else:
             ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel

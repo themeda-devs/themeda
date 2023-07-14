@@ -451,7 +451,8 @@ class EcoFutureModelSimpleConv(nn.Module):
         self,
         input_types=List[PolyData],
         output_types=List[PolyData],
-        embedding_size:int=16,    
+        embedding_size:int=16,
+        hidden_size:int=0,    
         kernel_size:int=1,    
         **kwargs,
     ):
@@ -464,8 +465,19 @@ class EcoFutureModelSimpleConv(nn.Module):
         self.output_types = output_types
         out_channels = total_size(output_types)
 
-        self.conv = nn.Conv2d(
-            embedding_size,
+        current_size = embedding_size
+        self.hidden_size = hidden_size
+        if hidden_size:
+            self.hidden_conv = nn.Conv2d(
+                current_size,
+                hidden_size,
+                kernel_size=kernel_size,
+                padding="same",
+            )
+            current_size = hidden_size
+
+        self.final_conv = nn.Conv2d(
+            current_size,
             out_channels,
             kernel_size=kernel_size,
             padding="same",
@@ -475,7 +487,12 @@ class EcoFutureModelSimpleConv(nn.Module):
         # Embedding
         x = self.embedding(*inputs)
         x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-        prediction = self.conv(x)
+        
+        if self.hidden_size:
+            x = self.hidden_conv(x)
+            x = F.relu(x)
+
+        prediction = self.final_conv(x)
         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 
         return split_tensor(prediction, self.output_types, feature_axis=2)
