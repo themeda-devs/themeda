@@ -26,6 +26,22 @@ def time_distributed_combine(x):
 
     return x, time_distributed, batch_size, timesteps
 
+def spatial_combine(x):
+    batch_size = x.shape[0]
+    width = 0
+    height = 0
+    assert len(x.shape) == 5
+
+    # Adapted from https://discuss.pytorch.org/t/any-pytorch-function-can-work-as-keras-timedistributed/1346/4
+    height = x.shape[-2]
+    width = x.shape[-1]
+    timesteps = x.shape[1]
+    features = x.shape[2]
+    new_shape = (batch_size * height * width, timesteps, features,)
+    x = x.permute(0,3,4,1,2).contiguous().view(new_shape)
+
+    return x, batch_size, height, width, timesteps, features
+
 # @torch.jit.script
 def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
     """
@@ -456,6 +472,10 @@ class EcoFutureModelSimpleConv(nn.Module):
         embedding_size:int=16,
         hidden_size:int=0,    
         kernel_size:int=1,    
+        temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
+        temporal_layers:int=2,
+        temporal_size:int=32,
+        temporal_bias:bool=True,
         **kwargs,
     ):
         super().__init__()
@@ -468,6 +488,7 @@ class EcoFutureModelSimpleConv(nn.Module):
         out_channels = total_size(output_types)
 
         current_size = embedding_size
+
         self.hidden_size = hidden_size
         if hidden_size:
             self.hidden_conv = nn.Conv2d(
@@ -478,6 +499,30 @@ class EcoFutureModelSimpleConv(nn.Module):
             )
             current_size = hidden_size
 
+
+        # Temporal Processor
+        rnn_kwargs = dict(
+            batch_first=True, 
+            bidirectional=False, 
+            input_size=current_size,
+            num_layers=temporal_layers,
+            hidden_size=temporal_size,
+            bias = temporal_bias,
+        )
+        temporal_processor_type = str(temporal_processor_type).upper()
+        self.temporal_processor_type = temporal_processor_type
+        if temporal_processor_type == "NONE":
+            self.temporal_processor = nn.Identity()
+        elif temporal_processor_type == "LSTM":
+            self.temporal_processor = nn.LSTM(**rnn_kwargs)
+            current_size = temporal_size
+        elif temporal_processor_type == "GRU":
+            self.temporal_processor = nn.GRU(**rnn_kwargs)
+            current_size = temporal_size
+        else:
+            raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
+
+
         self.final_conv = nn.Conv2d(
             current_size,
             out_channels,
@@ -485,15 +530,28 @@ class EcoFutureModelSimpleConv(nn.Module):
             padding="same",
         )
 
+
     def forward(self, *inputs):
         # Embedding
         x = self.embedding(*inputs)
-        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-        
+
         if self.hidden_size:
+            x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
             x = self.hidden_conv(x)
             x = F.relu(x)
+            x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 
+
+        if self.temporal_processor_type != "NONE":
+            x, batch_size, height, width, timesteps, _ = spatial_combine(x)
+            x = self.temporal_processor(x)
+            if isinstance(x, tuple):
+                x = x[0]
+            x = F.relu(x)
+            x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
+            
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
         prediction = self.final_conv(x)
         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 

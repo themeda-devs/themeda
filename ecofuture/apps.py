@@ -207,6 +207,7 @@ class EcoFuture(ta.TorchApp):
                 output_types=self.output_types,
                 embedding_size=embedding_size,
                 hidden_size=hidden_size,
+                temporal_processor_type=temporal_processor_type,
             )
         else:
             ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
