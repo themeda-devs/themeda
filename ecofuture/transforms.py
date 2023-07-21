@@ -89,14 +89,13 @@ class ChipletBlock():
         return data["position"]
     
     def __call__(self, item:Chiplet):   
-        self.base_dir = Path("../Data/chiplets2000/", self.base_dir.name) ## hack
         self.pad = False # hack
         arrays = []
         for path in self.get_paths(item):
             data = np.load(path, allow_pickle=True)
             arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
 
-        assert len(arrays) != 0, f"Number of timesteps is zero for chiplet {item}"
+        assert len(arrays) != 0, f"Number of timesteps is zero for chiplet {item} \nPaths:\n{self.get_paths(item)}"
 
         if self.pad and len(arrays) < self.time_dims:
             arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))

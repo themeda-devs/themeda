@@ -41,10 +41,56 @@ done
 
 # export CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
 
-export BATCH=4
-export SMOOTHING=0
-export MAX_YEARS=10
-export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-4-B
+# export BATCH=4
+# export SMOOTHING=0
+# export MAX_YEARS=10
+# export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-4-B
 
-poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
+# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
 
+# CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
+
+# BATCH=4
+
+# SMOOTHING=.1
+
+# MAX_YEARS=15
+
+# HIDDEN=16
+
+# KERNEL=3
+
+# EMBEDDING=16
+
+# LEARNING_RATE=0.00001
+
+# RUN_NAME=hidden${HIDDEN}-em${EMBEDDING}-k${KERNEL}-years${MAX_YEARS}-learning${LEARNING_RATE}
+
+# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+#     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+#     --max-years $MAX_YEARS --learning-rate 0.00001 --temporal-processor-type GRU --simple --dropout 0.2 \
+#     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
+# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+#     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+#     --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --simple --dropout 0.2 \
+#     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
+
+
+BATCH=4
+
+SMOOTHING=0
+
+MAX_YEARS=10
+
+KERNEL=9
+
+HIDDEN=16
+
+EMBEDDING=16
+
+RUN_NAME=hid${HIDDEN}-k${KERNEL}-em${EMBEDDING}-GRU
+
+
+
+
+poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb --simple --dropout 0.2 --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb-entity punim1932
