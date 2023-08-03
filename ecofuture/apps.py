@@ -144,8 +144,10 @@ class EcoFuture(ta.TorchApp):
 
             # hack
             if directory.name == "level4":
+                labels = list(LEVEL4_COLOURS.keys())
+                colours = list(LEVEL4_COLOURS.values())
                 self.input_types.append(
-                      CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=LEVEL4_COLOURS.keys(), colors=LEVEL4_COLOURS.values())
+                      CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
                 )
                 blocks.append(TransformBlock)
 

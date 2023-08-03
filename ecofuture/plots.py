@@ -1,3 +1,6 @@
+# -*- coding: future_typing -*-
+
+
 import numpy as np
 from pathlib import Path
 import plotly.express as px
@@ -94,6 +97,7 @@ def plot_chiplet_location(chiplet:Path|str, projection_scale:int=10):
 
 @typedispatch
 def wandb_process(x, y, samples, outs, preds):
+    breakpoint()
     table = wandb.Table(columns=["Input", "Target", "Prediction"])
     index = 0
 
