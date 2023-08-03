@@ -1,0 +1,25 @@
+
+
+LEVEL4_COLOURS = {
+    "No data": "Black",
+    "Cultivated closed": "#8D9316",
+    "Cultivated open 40": "#B4BC1C",
+    "Cultivated open 15": "#DAE422",
+    "Cultivated sparse": "#F4FD60",
+    "Woody closed": "#784E07",
+    "Woody open 40": "#A46B0A",
+    "Woody open 15": "#CE880F",
+    "Woody sparse": "#F6A415",
+    "Herbaceous closed": "#17610D",
+    "Herbaceous open 40": "#268F18",
+    "Herbaceous open 15": "#35C222",
+    "Herbaceous sparse": "#42FB29",
+    "Aquatic Woody closed": "#167867",
+    "Aquatic Woody open": "#23BEA3",
+    "Aquatic Woody sparse to open": "#2EF6D3",
+    "Aquatic Herbaceous": "#0092A2",
+    "Artificial Surface": "#777777",
+    "Natural Bare ground": "#FFE1A8",
+    "Water": "#336BFF",
+    "Water 1 to 6 months": "#A8BFFF",
+}

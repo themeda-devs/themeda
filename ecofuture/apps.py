@@ -29,7 +29,8 @@ from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCa
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
 from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
-
+from .colours import LEVEL4_COLOURS
+from .plots import wandb_process
 
 MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -143,7 +144,9 @@ class EcoFuture(ta.TorchApp):
 
             # hack
             if directory.name == "level4":
-                self.input_types.append(CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY))
+                self.input_types.append(
+                      CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=LEVEL4_COLOURS.keys(), colors=LEVEL4_COLOURS.values())
+                )
                 blocks.append(TransformBlock)
 
             elif directory.name in ["rain", "tmax"]:
