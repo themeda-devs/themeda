@@ -30,7 +30,7 @@ from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFuture
 from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
 from .colours import LEVEL4_COLOURS
-
+from .plots import wandb_process
 
 MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -154,7 +154,6 @@ class EcoFuture(ta.TorchApp):
                 mean = MEAN[directory.name]
                 std = STD[directory.name]
                 blocks.append(TransformBlock(type_tfms=Normalize(mean, std) ))
-
 
         # hack
         self.output_types = self.input_types
