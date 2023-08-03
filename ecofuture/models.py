@@ -476,6 +476,7 @@ class EcoFutureModelSimpleConv(nn.Module):
         temporal_layers:int=2,
         temporal_size:int=32,
         temporal_bias:bool=True,
+        num_conv_layers:int=1, # New argument to control the number of Conv2d layers
         **kwargs,
     ):
         super().__init__()
@@ -491,14 +492,16 @@ class EcoFutureModelSimpleConv(nn.Module):
 
         self.hidden_size = hidden_size
         if hidden_size:
-            self.hidden_conv = nn.Conv2d(
-                current_size,
-                hidden_size,
-                kernel_size=kernel_size,
-                padding="same",
-            )
-            current_size = hidden_size
-
+            
+            self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
+            for i in range(num_conv_layers):
+                self.hidden_convs.append(nn.Conv2d(
+                    current_size,
+                    hidden_size,
+                    kernel_size=kernel_size,
+                    padding="same",
+                ))
+                current_size = hidden_size
 
         # Temporal Processor
         rnn_kwargs = dict(
@@ -531,16 +534,21 @@ class EcoFutureModelSimpleConv(nn.Module):
         )
 
 
+
     def forward(self, *inputs):
         # Embedding
+        # breakpoint()
         x = self.embedding(*inputs)
 
         if self.hidden_size:
             x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-            x = self.hidden_conv(x)
-            x = F.relu(x)
+            
+            for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
+                
+                x = conv(x)
+                x = F.relu(x)
             x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
-
+            # breakpoint()
 
         if self.temporal_processor_type != "NONE":
             x, batch_size, height, width, timesteps, _ = spatial_combine(x)
