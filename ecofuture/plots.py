@@ -2,10 +2,14 @@ import numpy as np
 from pathlib import Path
 import plotly.express as px
 import plotly.graph_objects as go
+import wandb
+import plotly.graph_objects as go
+from fastcore.dispatch import typedispatch
 
 from polytorch.plots import format_fig
 
 from .colours import LEVEL4_COLOURS
+
 
 def plotly_discrete_colorscale(colors):
     """
@@ -86,3 +90,23 @@ def plot_chiplet_location(chiplet:Path|str, projection_scale:int=10):
     format_fig(fig)
 
     return fig
+
+
+@typedispatch
+def wandb_process(x, y, samples, outs, preds):
+    table = wandb.Table(columns=["Input", "Target", "Prediction"])
+    index = 0
+
+    for (sample_input, sample_target), prediction in zip(samples, outs):
+        plot_level4(sample_input[0], show=False).write_image(f"input-{index}.png")
+        plot_level4(sample_target[0], show=False).write_image(f"target-{index}.png")
+        plot_level4(prediction[0], show=False).write_image(f"prediction-{index}.png")
+
+        table.add_data(
+            wandb.Image(f"input-{index}.png"),
+            wandb.Image(f"target-{index}.png"),
+            wandb.Image(f"prediction-{index}.png"),
+        )
+        index += 1
+        
+    return {"Predictions": table}
