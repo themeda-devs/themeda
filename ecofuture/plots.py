@@ -51,37 +51,46 @@ def heatmap_level4(array, showscale=True):
     return heatmap
 
 
-def barchart_level4(array):
+def barchart_level4(array, soft:bool=False):
     colours = LEVEL4_COLOURS
-    counts = array.flatten().bincount(minlength=len(colours))
+    if soft:
+        counts = array.softmax(dim=0).mean(dim=[1,2])
+    else:
+        counts = array.flatten().bincount(minlength=len(colours))/array.nelement()
+    
     return go.Bar(
         # x=list(colours.keys()), 
         y=counts,
         marker_color=list(colours.values()),
         showlegend=False,
     )
-        
+
 
 def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
-
-    accuracy = (prediction == ground_truth).float().mean()
+    prediction_argmax = torch.argmax(prediction, axis=0)
+    persistence_accuracy = (input == ground_truth).float().mean()
+    prediction_accuracy = (prediction_argmax == ground_truth).float().mean()
 
     fig = make_subplots(
         rows=2, cols=3,
-        subplot_titles=("Input", "Ground Truth", f"Prediction (accuracy {accuracy:.2g})","", "", ""),
-        row_heights=[0.2, 0.8],
+        subplot_titles=(f"Input (persistence {persistence_accuracy:.2g})", "Ground Truth", f"Prediction (accuracy {prediction_accuracy:.2g})","", "", ""),
+        row_heights=[0.7, 0.3],
         vertical_spacing=0.1,
+        shared_yaxes=True,
     )
-    fig.add_trace(barchart_level4(array=input), row=1, col=1)
-    fig.add_trace(barchart_level4(array=ground_truth), row=1, col=2)
-    fig.add_trace(barchart_level4(array=prediction), row=1, col=3)
+    heatmap_row = 1
+    barchart_row = heatmap_row + 1
 
-    fig.add_trace(heatmap_level4(array=input, showscale=True), row=2, col=1)
-    fig.add_trace(heatmap_level4(array=ground_truth, showscale=False), row=2, col=2)
-    fig.add_trace(heatmap_level4(array=prediction, showscale=False), row=2, col=3)
+    fig.add_trace(heatmap_level4(array=input, showscale=True), row=heatmap_row, col=1)
+    fig.add_trace(heatmap_level4(array=ground_truth, showscale=False), row=heatmap_row, col=2)
+    fig.add_trace(heatmap_level4(array=prediction_argmax, showscale=False), row=heatmap_row, col=3)
+
+    fig.add_trace(barchart_level4(array=input), row=barchart_row, col=1)
+    fig.add_trace(barchart_level4(array=ground_truth), row=barchart_row, col=2)
+    fig.add_trace(barchart_level4(array=prediction, soft=True), row=barchart_row, col=3)
 
     format_fig(fig)
-    fig.update_layout(width=1200, height=500)
+    fig.update_layout(width=1200, height=600)
 
     if show:
         fig.show()
@@ -156,8 +165,7 @@ def wandb_process(x, y, samples, outs, preds):
         image_filename = str(wandb_log_dir/f"level4-{index}.png")
         timestep = -1
         input = sample_input[0][timestep]
-        prediction = torch.argmax(prediction[0][-1], axis=0)
-
+        prediction = prediction[0][timestep]
         ground_truth = sample_input[3][timestep]
 
         plot_level4_comparison(input, ground_truth, prediction ).write_image(image_filename)
