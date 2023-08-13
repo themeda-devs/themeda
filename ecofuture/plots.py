@@ -62,16 +62,20 @@ def barchart_level4(array):
     )
         
 
-def plot_level4_comparison(input, ground_truth, prediction, show:bool=False, title=""):
+def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
+
+    accuracy = (prediction == ground_truth).float().mean()
+
     fig = make_subplots(
         rows=2, cols=3,
-        subplot_titles=("Input", "Ground Truth", "Prediction","", "", ""),
+        subplot_titles=("Input", "Ground Truth", f"Prediction (accuracy {accuracy:.2g})","", "", ""),
         row_heights=[0.2, 0.8],
         vertical_spacing=0.1,
     )
     fig.add_trace(barchart_level4(array=input), row=1, col=1)
     fig.add_trace(barchart_level4(array=ground_truth), row=1, col=2)
     fig.add_trace(barchart_level4(array=prediction), row=1, col=3)
+
     fig.add_trace(heatmap_level4(array=input, showscale=True), row=2, col=1)
     fig.add_trace(heatmap_level4(array=ground_truth, showscale=False), row=2, col=2)
     fig.add_trace(heatmap_level4(array=prediction, showscale=False), row=2, col=3)
