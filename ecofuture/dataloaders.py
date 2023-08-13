@@ -3,16 +3,25 @@ import random
 from fastai.data.core import TfmdDL
 from fastai.data.load import _loaders, to_device
 from fastai.callback.core import Callback
+from fastai.torch_core import batch_to_samples
 
 from .transforms import Chiplet
 
 class TPlus1Callback(Callback):
     def before_batch(self):
         xb = self.xb
-        
         self.learn.xb = tuple(x[:,:-1] for x in xb)
-        # self.learn.yb = (xb[0][:,1:],)
         self.learn.yb = tuple(x[:,1:] for x in xb)
+
+
+class FutureDataLoader(TfmdDL):
+    def _decode_batch(self, b, max_n=9, full=True):
+        """ 
+        Does not decode samples from batch due to issue with TPlus1Callback.
+        
+        This is only a problem when visualising when logging with W&B.
+        """
+        return batch_to_samples(b, max_n=max_n)
 
 
 class PredictPersistanceCallback(Callback):

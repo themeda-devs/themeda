@@ -25,7 +25,7 @@ from fastai.data.block import TransformBlock
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType
 from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice
 
-from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback
+from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
 from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
@@ -180,6 +180,7 @@ class EcoFuture(ta.TorchApp):
             datablock,
             source=chiplets,
             bs=batch_size,
+            dl_type=FutureDataLoader,
         )
 
         return dataloaders
@@ -238,20 +239,7 @@ class EcoFuture(ta.TorchApp):
             callbacks.append(PredictPersistanceCallback())
         return callbacks
 
-    def loss_func(
-        self, 
-        # l1:bool=ta.Param(
-        #     default=False, 
-        #     help="Whether to use the L1 loss (Mean Absolute Loss) for continuous variables. "
-        #         "Otherwise the Mean Squared Error (L2 loss) is used.",
-        # ),
-        # label_smoothing:float = ta.Param(
-        #     default=0.0, 
-        #     min=0.0,
-        #     max=1.0,
-        #     help="The amount of label smoothing to use.",
-        # ), 
-    ):
+    def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
     def inference_dataloader(self, learner, base_dir:Path=None, max_chiplets:int=None, num_workers:int=None, **kwargs):
@@ -329,7 +317,8 @@ class EcoFuture(ta.TorchApp):
 
         table = Table(title="Validation", box=SIMPLE)
 
-        values = learner.validate(dl=dataloaders.valid, cbs=[TPlus1Callback()])
+        callbacks = [TPlus1Callback()]
+        values = learner.validate(dl=dataloaders.valid, cbs=callbacks)
         names = [learner.recorder.loss.name] + [metric.name for metric in learner.metrics]
         result = {name: value for name, value in zip(names, values)}
 
