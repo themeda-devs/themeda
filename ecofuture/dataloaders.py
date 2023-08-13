@@ -21,7 +21,8 @@ class FutureDataLoader(TfmdDL):
         
         This is only a problem when visualising when logging with W&B.
         """
-        return batch_to_samples(b, max_n=max_n)
+        samples = batch_to_samples(b, max_n=max_n)
+        return samples
 
 
 class PredictPersistanceCallback(Callback):

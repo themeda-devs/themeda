@@ -8,6 +8,7 @@ import plotly.graph_objects as go
 import wandb
 import plotly.graph_objects as go
 from fastcore.dispatch import typedispatch
+from plotly.subplots import make_subplots
 
 from polytorch.plots import format_fig
 
@@ -34,7 +35,7 @@ def plotly_discrete_colorscale(colors):
     return discrete_colorscale
 
 
-def plot_level4(array, show:bool=False, title=""):
+def heatmap_level4(array):
     color_scale = plotly_discrete_colorscale(list(LEVEL4_COLOURS.values()))
     labels = list(LEVEL4_COLOURS.keys())
     labels = [f"{i}: {label}" for i, label in enumerate(labels)]
@@ -46,6 +47,29 @@ def plot_level4(array, show:bool=False, title=""):
         colorscale=color_scale,
         colorbar=dict(thickness=25, tickvals=tickvals, ticktext=labels),
     )
+    return heatmap
+
+
+def plot_level4_comparison(input, ground_truth, prediction, show:bool=False, title=""):
+    fig = make_subplots(
+        rows=1, cols=3,
+        subplot_titles=("Input", "Ground Truth", "Prediction",)
+    )
+    fig.add_trace(heatmap_level4(array=input), row=1, col=1)
+    fig.add_trace(heatmap_level4(array=ground_truth), row=1, col=2)
+    fig.add_trace(heatmap_level4(array=prediction), row=1, col=3)
+
+    format_fig(fig)
+    fig.update_layout(width=1200, height=600)
+
+    if show:
+        fig.show()
+
+    return fig
+
+
+def plot_level4(array, show:bool=False, title=""):
+    heatmap = heatmap_level4(array=array)
     fig = go.Figure(data=[heatmap])
     format_fig(fig)
 
@@ -101,24 +125,24 @@ def plot_chiplet_location(chiplet:Path|str, projection_scale:int=10):
 @typedispatch
 def wandb_process(x, y, samples, outs, preds):
     
-    table = wandb.Table(columns=["Input", "Prediction"])
+    table = wandb.Table(columns=["Land Cover"])
     index = 0
 
     wandb_log_dir = Path("wandb-images")
     wandb_log_dir.mkdir(parents=True, exist_ok=True)
 
     for sample_input, prediction in zip(samples, outs):
-        input_filename = str(wandb_log_dir/f"input-{index}.png")
-        prediction_filename = str(wandb_log_dir/f"prediction-{index}.png")
-        
-        plot_level4(sample_input[0][-1], title="Input").write_image(input_filename)
-        # plot_level4(sample_target[0]).write_image(f"target-{index}.png")
-        plot_level4(torch.argmax(prediction[0][-1], axis=0), title="Prediction").write_image(prediction_filename)
+        image_filename = str(wandb_log_dir/f"level4-{index}.png")
+        timestep = -1
+        input = sample_input[0][timestep]
+        prediction = torch.argmax(prediction[0][-1], axis=0)
+
+        ground_truth = sample_input[3][timestep]
+
+        plot_level4_comparison(input, ground_truth, prediction ).write_image(image_filename)
 
         table.add_data(
-            wandb.Image(input_filename),
-            # wandb.Image(f"target-{index}.png"),
-            wandb.Image(prediction_filename),
+            wandb.Image(image_filename),
         )
         index += 1
         
