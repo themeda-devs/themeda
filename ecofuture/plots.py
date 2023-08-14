@@ -9,11 +9,12 @@ import wandb
 import plotly.graph_objects as go
 from fastcore.dispatch import typedispatch
 from plotly.subplots import make_subplots
+import torch.nn.functional as F
 
 from polytorch.plots import format_fig
 
 from .colours import LEVEL4_COLOURS
-
+from .metrics import kl_divergence_proportions_tensors
 
 def plotly_discrete_colorscale(colors):
     """
@@ -71,11 +72,33 @@ def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
     persistence_accuracy = (input == ground_truth).float().mean()
     prediction_accuracy = (prediction_argmax == ground_truth).float().mean()
 
+    # kl divergence predictions
+    feature_axis = 1
+    prediction_kl = kl_divergence_proportions_tensors( 
+        prediction.unsqueeze(0), 
+        ground_truth.unsqueeze(0),
+        feature_axis=feature_axis,
+    )
+
+    # kl divergence persistence
+    n_classes = prediction.shape[0]
+    permutations = list(range(len(prediction.shape)-1))
+    permutations.insert(0, len(prediction.shape)-1)
+    one_hot_input = F.one_hot(input.long(), n_classes).permute(*permutations).float()
+    
+    persistence_kl = kl_divergence_proportions_tensors( 
+        one_hot_input.unsqueeze(0) * 100.0,  # simulate unnormalised scores for softmax
+        ground_truth.unsqueeze(0),
+        feature_axis=feature_axis,
+    )
+
+    subplot_titles = (f"Input (persistence {persistence_accuracy:.2g})", "Ground Truth", f"Prediction (accuracy {prediction_accuracy:.2g})")
+    subplot_titles += (f"Persistence KL Divergence {persistence_kl:.2g}", "", f"Prediction KL Divergence {prediction_kl:.2g}")
     fig = make_subplots(
         rows=2, cols=3,
-        subplot_titles=(f"Input (persistence {persistence_accuracy:.2g})", "Ground Truth", f"Prediction (accuracy {prediction_accuracy:.2g})","", "", ""),
+        subplot_titles=subplot_titles,
         row_heights=[0.7, 0.3],
-        vertical_spacing=0.1,
+        vertical_spacing=0.15,
         shared_yaxes=True,
     )
     heatmap_row = 1
