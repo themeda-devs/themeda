@@ -477,6 +477,7 @@ class EcoFutureModelSimpleConv(nn.Module):
         temporal_size:int=32,
         temporal_bias:bool=True,
         num_conv_layers:int=1, # New argument to control the number of Conv2d layers
+        padding_mode:str="zeros",
         **kwargs,
     ):
         super().__init__()
@@ -500,6 +501,7 @@ class EcoFutureModelSimpleConv(nn.Module):
                     hidden_size,
                     kernel_size=kernel_size,
                     padding="same",
+                    padding_mode=padding_mode,
                 ))
                 current_size = hidden_size
 
@@ -531,6 +533,7 @@ class EcoFutureModelSimpleConv(nn.Module):
             out_channels,
             kernel_size=kernel_size,
             padding="same",
+            padding_mode=padding_mode,
         )
 
 

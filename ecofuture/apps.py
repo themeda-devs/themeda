@@ -197,6 +197,7 @@ class EcoFuture(ta.TorchApp):
         dropout:float=0.0,   
         hidden_size:int=0,     # only for simple conv 
         num_conv_layers:int=1, #add multiple conv layers
+        padding_mode:str="zeros",
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
@@ -216,6 +217,7 @@ class EcoFuture(ta.TorchApp):
                 hidden_size=hidden_size,
                 temporal_processor_type=temporal_processor_type,
                 num_conv_layers=num_conv_layers,
+                padding_mode=padding_mode,
             )
         else:
             ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
