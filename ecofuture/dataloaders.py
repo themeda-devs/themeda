@@ -10,8 +10,11 @@ from .transforms import Chiplet
 class TPlus1Callback(Callback):
     def before_batch(self):
         xb = self.xb
+        yb = self.yb or xb # use inputs if no y batch given
         self.learn.xb = tuple(x[:,:-1] for x in xb)
-        self.learn.yb = tuple(x[:,1:] for x in xb)
+        self.learn.yb = tuple(y[:,1:] for y in yb)
+
+        
 
 
 class FutureDataLoader(TfmdDL):

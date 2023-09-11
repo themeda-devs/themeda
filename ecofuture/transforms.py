@@ -76,7 +76,7 @@ class ChipletBlock():
         ]
     
     def __call__(self, index):   
-        data = torch.cat([torch.tensor(chiplet[index]) for chiplet in self.chiplets])
+        data = torch.cat([torch.tensor(chiplet[index]).unsqueeze(0) for chiplet in self.chiplets])
         if isinstance(data, torch.ByteTensor):
             data = data.int()
         return data
