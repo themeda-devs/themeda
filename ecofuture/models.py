@@ -1,4 +1,4 @@
-# -*- coding: future_typing -*-
+# broken # -*- coding: future_typing -*-
 
 from typing import List
 from torch import Tensor
@@ -539,8 +539,7 @@ class EcoFutureModelSimpleConv(nn.Module):
 
 
     def forward(self, *inputs):
-        # Embedding
-        # breakpoint()
+        # Embedding        
         x = self.embedding(*inputs)
 
         if self.hidden_size:

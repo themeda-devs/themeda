@@ -34,8 +34,8 @@ from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCa
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
 from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
-from .colours import LEVEL4_COLOURS
 from .plots import wandb_process
+from .colours import get_land_cover_colours
 
 MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -117,9 +117,10 @@ def get_block(name:DataSourceName|str) -> TransformBlock:
 def get_datatype(name:DataSourceName|str) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        labels = list(LEVEL4_COLOURS.keys())
-        colours = list(LEVEL4_COLOURS.values())
-        return CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+        colours_dict = get_land_cover_colours()
+        labels = list(colours_dict.keys())
+        colours = list(colours_dict.values())
+        return CategoricalData(len(labels), loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
     if name in ["rain", "tmax"]:
         return ContinuousData()
 
@@ -213,12 +214,12 @@ class EcoFuture(ta.TorchApp):
         encoder_resent:ResNet=ResNet.resnet18.value,
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
         fastai_unet:bool=False,
-        simple:bool=False,
+        simple:bool=True,
         kernel_size:int=1,
         dropout:float=0.0,   
         hidden_size:int=0,     # only for simple conv 
         num_conv_layers:int=1, #add multiple conv layers
-        padding_mode:str="zeros",
+        padding_mode:str="reflect",
     ) -> nn.Module:
         """
         Creates a deep learning model for the EcoFuture to use.
