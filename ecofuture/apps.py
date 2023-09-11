@@ -1,5 +1,6 @@
 # -*- coding: future_typing -*-
 
+from typing import List
 import torch
 from pathlib import Path
 from torch import nn
@@ -22,8 +23,12 @@ from torchapp.util import call_func
 
 from fastai.data.block import TransformBlock
 
-from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType
+from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
 from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice
+
+from ecofuture_preproc.source import DataSourceName
+from ecofuture_preproc.roi import ROIName
+from ecofuture_preproc.chiplet_table import load_table
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
@@ -99,6 +104,27 @@ class SubsetSplitter:
         return IndexSplitter(validation_indexes)(objects)
 
 
+def get_block(name:DataSourceName|str) -> TransformBlock:
+    name = str(name)
+    if name in ["rain", "tmax"]:
+        return TransformBlock(type_tfms=Normalize(MEAN[name], STD[name]) )
+    if name == "land_cover":
+        return TransformBlock()
+
+    raise NotImplementedError
+
+
+def get_datatype(name:DataSourceName|str) -> PolyData:
+    name = str(name)
+    if name == "land_cover":
+        labels = list(LEVEL4_COLOURS.keys())
+        colours = list(LEVEL4_COLOURS.values())
+        return CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+    if name in ["rain", "tmax"]:
+        return ContinuousData()
+
+    raise NotImplementedError
+
 
 class EcoFuture(ta.TorchApp):
     """
@@ -106,79 +132,74 @@ class EcoFuture(ta.TorchApp):
     """
     def dataloaders(
         self,
-        level4:Path=ta.Param("", help="The path to a directory with cached level 4 chiplets"),
-        rain:Path=ta.Param("", help="The path to a directory with cached rain chiplets"),
-        tmax:Path=ta.Param("", help="The path to a directory with cached tmax chiplets"),
-        start:str=ta.Param("1988-01-01", help="The start date."),
-        end:str=ta.Param("2018-01-01", help="The end date."),
-        interval:Interval=ta.Param(Interval.YEARLY.value, help="The time interval to use."),
+        input:List[DataSourceName]=ta.Param(..., help="The input data types."),
+        output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
+        roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="ECOFUTURE_PREPROC_BASE_OUTPUT_DIR"),
+        start_year:int=ta.Param(1988, help="The start date."),
+        end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
         max_years:int=None,
         batch_size:int = ta.Param(default=1, help="The batch size."),
         validation_subset:int=1,
-        predict_persistance:bool=False,
+        # predict_persistance:bool=False,
+        pad_size:int = 0,
+        base_size:int = 160,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
         Returns:
             DataLoaders: The DataLoaders object.
-        """
-        dates = get_dates(start=start, end=end, interval=interval)        
-        self.input_types = []
-        splitter = SubsetSplitter(validation_subset)
-        self.level4 = level4
-        self.rain = rain
-        self.tmax = tmax
-        self.in_channels_continuous = bool(rain) + bool(tmax)
+        """        
+        self.inputs = [i if isinstance(i, DataSourceName) else DataSourceName[str(i).upper()] for i in input]
+        self.outputs = [i if isinstance(i, DataSourceName) else DataSourceName[str(i).upper()] for i in output]
 
-        blocks = []
-        getters = []
-        for directory in (level4, rain, tmax):
-            if not directory:
-                continue
-            directory = Path(directory)
-            if not directory.exists:
-                raise FileNotFoundError(f"Cannot find directory {directory}")
+        assert len(self.inputs) > 0, "You must include at least one input."
+        if len(self.outputs) == 0:
+            self.outputs = self.inputs
 
-            getters.append(ChipletBlock(base_dir=directory, dates=dates, max_years=max_years))
+        all_types = self.inputs + self.outputs
 
-            # hack
-            if directory.name == "level4":
-                labels = list(LEVEL4_COLOURS.keys())
-                colours = list(LEVEL4_COLOURS.values())
-                self.input_types.append(
-                      CategoricalData(21, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
-                )
-                blocks.append(TransformBlock)
+        self.input_types = [get_datatype(name) for name in self.inputs]
+        self.output_types = [get_datatype(name) for name in self.outputs]
+        # self.output_types = self.input_types # hack
 
-            elif directory.name in ["rain", "tmax"]:
-                self.input_types.append(ContinuousData())
-                mean = MEAN[directory.name]
-                std = STD[directory.name]
-                blocks.append(TransformBlock(type_tfms=Normalize(mean, std) ))
+        base_dir = Path(base_dir)
+        assert base_dir.exists(), f"Base Dir {base_dir} does not exist"
 
-        # hack
-        self.output_types = self.input_types
-        
-        # hack
-        self.predict_persistance = predict_persistance
-        if predict_persistance and isinstance(self.output_types[0], CategoricalData):
-            self.output_types = [BinaryData(loss_type=BinaryLossType.DICE)] + self.output_types[1:]
+        blocks = [get_block(name) for name in all_types]
+        years = list(range(start_year, end_year + 1))
+        getters = [
+            ChipletBlock(
+                name=name,
+                years=years,
+                roi=roi,
+                base_size=base_size,
+                pad_size=pad_size,
+                base_dir=base_dir,
+            )
+            for name in all_types
+        ] 
 
-        assert len(getters) > 0, "At least one of level4, rain or tmax must be given a valid directory."
+        table = load_table(
+            roi_name=roi,
+            base_output_dir=base_dir,
+            pad_size_pix=pad_size,
+        )
 
-        chiplets = get_chiplets_list(getters[0].base_dir, max_chiplets)
+        indexes = table['index']
+        splitter = IndexSplitter(table['subset_num'] == validation_subset)
 
         datablock = DataBlock(
             blocks=blocks,
             getters=getters,
             splitter=splitter,
-            n_inp=len(blocks),
+            n_inp=len(self.input_types),
         )
 
         dataloaders = DataLoaders.from_dblock(
             datablock,
-            source=chiplets,
+            source=indexes,
             bs=batch_size,
             dl_type=FutureDataLoader,
         )
@@ -268,26 +289,21 @@ class EcoFuture(ta.TorchApp):
 
     def metrics(self):
         metrics = []
+        feature_axis = 2
 
-        if self.level4:
-            if self.predict_persistance:
+        for data_index, output in enumerate(self.outputs):
+            output = str(output)
+            if output == "land_cover":
                 metrics += [
-                    partial(binary_accuracy, data_index=0, feature_axis=2),
-                    partial(binary_dice, data_index=0, feature_axis=2),
-                    partial(binary_iou, data_index=0, feature_axis=2),
+                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
+                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
+                    partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
                 ]
+
+            elif output in ["rain", "tmax"]:
+                metrics.append(PolyMetric(name=f"smooth_l1_{output}", feature_axis=feature_axis, data_index=data_index, function=F.smooth_l1_loss))
             else:
-                metrics += [
-                    partial(categorical_accuracy, data_index=0, feature_axis=2),
-                    partial(kl_divergence_proportions, data_index=0, feature_axis=2),
-                    partial(generalized_dice, data_index=0, feature_axis=2),
-                ]
-            
-        if self.rain:
-            metrics.append(smooth_l1_rain)
-
-        if self.tmax:
-            metrics.append(smooth_l1_tmax)
+                raise ValueError(f"No metrics for output {output}")
         
         return metrics
 

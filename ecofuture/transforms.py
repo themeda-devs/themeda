@@ -11,6 +11,7 @@ from torch import Tensor
 from fastai.data.transforms import DisplayedTransform
 import numpy as np
 
+from ecofuture_preproc.chiplets import load_chiplets
 
 @dataclass
 class CroppedChip():
@@ -53,6 +54,35 @@ class Chiplet:
 
 
 class ChipletBlock():
+    def __init__(
+        self,    
+        name,
+        years,
+        roi,
+        base_size,
+        pad_size,
+        base_dir,
+    ):
+        self.chiplets = [
+            load_chiplets(
+                source_name=name,
+                year=year,
+                roi_name=roi,
+                base_size_pix=base_size,
+                pad_size_pix=pad_size,
+                base_output_dir=base_dir,
+            )
+            for year in years
+        ]
+    
+    def __call__(self, index):   
+        data = torch.cat([torch.tensor(chiplet[index]) for chiplet in self.chiplets])
+        if isinstance(data, torch.ByteTensor):
+            data = data.int()
+        return data
+
+
+class ChipletBlockOLD():
     def __init__(self, base_dir:Path, dates:List[datetime], pad_value:int=0, max_years:int=0, pad:bool=True): # hack
         super().__init__()
         # super().__init__(item_tfms=[self.tuple_to_tensor])
