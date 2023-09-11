@@ -24,11 +24,12 @@ from torchapp.util import call_func
 from fastai.data.block import TransformBlock
 
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
-from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice
+from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice, PolyMetric
 
 from ecofuture_preproc.source import DataSourceName
 from ecofuture_preproc.roi import ROIName
 from ecofuture_preproc.chiplet_table import load_table
+import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
