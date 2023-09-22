@@ -32,11 +32,12 @@ from ecofuture_preproc.chiplet_table import load_table
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel
+from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel, ProportionsLSTMModel
 from .transforms import ChipletBlock, Normalize
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
 from .plots import wandb_process
 from .colours import get_land_cover_colours
+from .loss import ProportionLoss
 
 MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -156,6 +157,9 @@ class EcoFuture(ta.TorchApp):
         self.inputs = [i if isinstance(i, DataSourceName) else DataSourceName[str(i).upper()] for i in input]
         self.outputs = [i if isinstance(i, DataSourceName) else DataSourceName[str(i).upper()] for i in output]
 
+        if isinstance(roi, str):
+            roi = ROIName[roi.upper()]
+            
         assert len(self.inputs) > 0, "You must include at least one input."
         if len(self.outputs) == 0:
             self.outputs = self.inputs
@@ -351,3 +355,23 @@ class EcoFuture(ta.TorchApp):
         console.print(table)
 
         return result
+
+
+class EcofutureProportionsApp(EcoFuture):
+    def model(
+        self,
+        hidden_size:int=256, 
+        num_layers:int=4, 
+        dropout:float=ta.Param(0.5, help="The amount of dropout to use."),
+    ):
+        return ProportionsLSTMModel(
+            input_types=self.input_types,
+            output_types=self.output_types,            
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            dropout=dropout,
+        )
+        
+    def loss_func(self):
+        return ProportionLoss(output_types=self.output_types)
+        

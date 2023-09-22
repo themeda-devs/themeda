@@ -75,6 +75,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 ecofuture = "ecofuture.apps:EcoFuture.main"
+ecofuture-proportion = "ecofuture.apps:EcofutureProportionsApp.main"
 ecofuture_preproc = "ecofuture.preproc.cli:run"
 ecofuture_preproc_spartan = "ecofuture.preproc.spartan:run"
 
