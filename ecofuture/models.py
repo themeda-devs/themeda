@@ -539,7 +539,7 @@ class EcoFutureModelSimpleConv(nn.Module):
 
 
     def forward(self, *inputs):
-        # Embedding        
+        # Embedding       
         x = self.embedding(*inputs)
 
         if self.hidden_size:

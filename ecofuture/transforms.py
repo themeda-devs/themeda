@@ -63,6 +63,12 @@ class ChipletBlock():
         pad_size,
         base_dir,
     ):
+        self.name = name
+        self.years = years
+        self.roi = roi
+        self.base_size = base_size
+        self.pad_size = pad_size
+        self.base_dir = base_dir
         self.chiplets = [
             load_chiplets(
                 source_name=name,
@@ -75,10 +81,25 @@ class ChipletBlock():
             for year in years
         ]
     
-    def __call__(self, index):   
-        data = torch.cat([torch.tensor(chiplet[index]).unsqueeze(0) for chiplet in self.chiplets])
+    def __call__(self, index):  
+        arrays = []
+        for chiplet in self.chiplets:
+            chiplet_data = chiplet[index]
+            nans = np.isnan(chiplet_data)
+            if nans.any():
+                chiplet_data = np.nan_to_num(chiplet_data, nan=chiplet_data[~np.isnan(chiplet_data)].mean())
+
+            chiplet_data = np.expand_dims(chiplet_data, axis=0)
+
+            arrays.append(chiplet_data)
+        data = torch.tensor(np.concatenate(arrays))
+
         if isinstance(data, torch.ByteTensor):
             data = data.int()
+        
+        # if torch.isnan(data).any():
+        #     raise ValueError(f"NaN in {self.name}, {self.years}, index={index}")
+
         return data
 
 

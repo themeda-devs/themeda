@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 20:00:00
+#SBATCH -t 32:00:00
 
 # SBATCH -p physical
 #SBATCH -p gpu-a100
@@ -20,88 +20,43 @@
 
 # Load the environment variables
 module purge
-module load python/3.9.6
-module load cuda/11.7.0
-module load cudnn/8.8.1.3-cuda-11.7.0
-module load nccl/2.14.3-cuda-11.7.0
-module load web_proxy/latest
+module load GCCcore/11.3.0
+module load Python/3.10.4
+module load CUDA/11.7.0
 
-# unzip to ssd
-export UNZIP_DISABLE_ZIPBOMB_DETECTION=true
-export CHIPLET_DIR=/tmp/chiplets
-for category in level4 rain tmax ; do 
-    export CATEGORY_DIR=$CHIPLET_DIR/$category
-    mkdir -p $CATEGORY_DIR
-    for year in $(seq 1988 2018) ; do 
-        for x in $( ls -1 /data/gpfs/projects/punim1932/Data/chiplets/${category}/ecofuture_chiplet_${category}_${year}_subset_* ) ; do 
-            unzip $x -d ${CATEGORY_DIR}
-        done
-    done
-done
+export PATH=/home/rturnbull/runting/poetry-py3.9.6/bin:$PATH
 
-# export CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
+export BASE_DIR=/data/gpfs/projects/punim1932/data_wip
 
-# export BATCH=4
-# export SMOOTHING=0
-# export MAX_YEARS=10
-# export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-4-B
+# copy to ssd
+# export SSD_BASE_DIR=/tmp/ecofuture-data
+# echo Copying to $SSD_BASE_DIR
+# rsync should work but this command is having issues
+# rsync –avL $BASE_DIR $SSD_BASE_DIR
 
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
-
-# CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
-
-# BATCH=4
-
-# SMOOTHING=.1
-
-# MAX_YEARS=15
-
-# HIDDEN=16
-
-# KERNEL=3
-
-# EMBEDDING=16
-
-# LEARNING_RATE=0.00001
-
-# RUN_NAME=hidden${HIDDEN}-em${EMBEDDING}-k${KERNEL}-years${MAX_YEARS}-learning${LEARNING_RATE}
-
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
-#     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-#     --max-years $MAX_YEARS --learning-rate 0.00001 --temporal-processor-type GRU --simple --dropout 0.2 \
-#     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
-#     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-#     --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --simple --dropout 0.2 \
-#     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
-
+# mkdir $SSD_BASE_DIR
+# cp -r $BASE_DIR/chiplet_table $SSD_BASE_DIR/chiplet_table
+# cp -r /data/scratch/projects/punim1932/chiplets_wip $SSD_BASE_DIR/chiplets
+# echo Finished copying to $SSD_BASE_DIR
+# ls -l $SSD_BASE_DIR
 
 BATCH=4
-
-SMOOTHING=0
-MAX_YEARS=2
+LEARNING_RATE=0.001
 KERNEL=15
 HIDDEN=64
 EMBEDDING=16
-LEARNING_RATE=0.001
-Temporal_Processor_Type='GRU'
-Num_Conv_Layers=5
-RUN_NAME=hid${HIDDEN}-k${KERNEL}-em${EMBEDDING}-years${MAX_YEARS}-learning${LEARNING_RATE}-NumLayer${Num_Conv_Layers}-${Temporal_Processor_Type}
+
+RUN_NAME=memmap-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC
+
+poetry run ecofuture train \
+    --input land_cover --input tmax --input rain \
+    --output land_cover \
+    --validation-subset 1 --batch-size $BATCH \
+    --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
+    --kernel-size $KERNEL --embedding-size $EMBEDDING \
+    --base-dir $BASE_DIR \
+    --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+    --wandb --wandb-entity punim1932
 
 
-poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
-        --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-        --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type $Temporal_Processor_Type --wandb --simple --dropout 0.2 \
-        --hidden-size $HIDDEN --num-conv-layers $Num_Conv_Layers --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb-entity punim1932
-
-
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
-#         --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-#         --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --wandb --simple --dropout 0.2 \
-#         --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
-
-
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
-#     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-#     --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --simple --dropout 0.2 \
-#     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
+#    --output land_cover  \
