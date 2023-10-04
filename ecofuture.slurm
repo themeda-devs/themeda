@@ -9,6 +9,8 @@
 # set your minimum acceptable walltime=days-hours:minutes:seconds
 #SBATCH -t 32:00:00
 
+#SBATCH --mem-per-cpu=8G
+
 # SBATCH -p physical
 #SBATCH -p gpu-a100
 #SBATCH --gres=gpu:1
@@ -46,7 +48,7 @@ KERNEL=15
 HIDDEN=64
 EMBEDDING=16
 
-RUN_NAME=memmap-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC
+RUN_NAME=memmap-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-8G
 
 poetry run ecofuture train \
     --input land_cover --input tmax --input rain \

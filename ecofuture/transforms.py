@@ -11,7 +11,7 @@ from torch import Tensor
 from fastai.data.transforms import DisplayedTransform
 import numpy as np
 
-from ecofuture_preproc.chiplets import load_chiplets
+from ecofuture_preproc.chiplets import load_chiplets, chiplets_reader
 
 @dataclass
 class CroppedChip():
@@ -69,30 +69,42 @@ class ChipletBlock():
         self.base_size = base_size
         self.pad_size = pad_size
         self.base_dir = base_dir
-        self.chiplets = [
-            load_chiplets(
-                source_name=name,
-                year=year,
-                roi_name=roi,
-                base_size_pix=base_size,
-                pad_size_pix=pad_size,
-                base_output_dir=base_dir,
-            )
-            for year in years
-        ]
+        self.kwargs = dict(
+            source_name=name,
+            roi_name=roi,
+            base_size_pix=base_size,
+            pad_size_pix=pad_size,
+            base_output_dir=base_dir,
+        )
+        # self.chiplets = [
+        #     load_chiplets(
+        #         source_name=name,
+        #         year=year,
+        #         roi_name=roi,
+        #         base_size_pix=base_size,
+        #         pad_size_pix=pad_size,
+        #         base_output_dir=base_dir,
+        #     )
+        #     for year in years
+        # ]
     
     def __call__(self, index):  
         arrays = []
-        for chiplet in self.chiplets:
-            chiplet_data = chiplet[index]
-            nans = np.isnan(chiplet_data)
-            if nans.any():
-                chiplet_data = np.nan_to_num(chiplet_data, nan=chiplet_data[~np.isnan(chiplet_data)].mean())
 
-            chiplet_data = np.expand_dims(chiplet_data, axis=0)
+        for year in self.years:
+            with chiplets_reader(year=year, **self.kwargs) as chiplets:
+                print(year, index)
+                chiplet_data = np.array(chiplets[index,:,:])
+                # nans = np.isnan(chiplet_data)
+                # if nans.any():
+                #     chiplet_data = np.nan_to_num(chiplet_data, nan=chiplet_data[~np.isnan(chiplet_data)].mean())
 
-            arrays.append(chiplet_data)
+                chiplet_data = np.expand_dims(chiplet_data, axis=0)
+
+                arrays.append(chiplet_data)
+
         data = torch.tensor(np.concatenate(arrays))
+        del arrays
 
         if isinstance(data, torch.ByteTensor):
             data = data.int()
@@ -171,4 +183,7 @@ class Normalize(DisplayedTransform):
     def decodes(self, x):
         return x * self.std + self.mean
 
+
+def make_binary(x):
+    return x > 0
 

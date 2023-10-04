@@ -26,21 +26,22 @@ from fastai.data.block import TransformBlock
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
 from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice, PolyMetric
 
-from ecofuture_preproc.source import DataSourceName
+from ecofuture_preproc.source import DataSourceName, is_data_source_continuous
 from ecofuture_preproc.roi import ROIName
 from ecofuture_preproc.chiplet_table import load_table
+from ecofuture_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel, ProportionsLSTMModel
-from .transforms import ChipletBlock, Normalize
+from .transforms import ChipletBlock, Normalize, make_binary
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
 from .plots import wandb_process
 from .colours import get_land_cover_colours
 from .loss import ProportionLoss
 
-MEAN = {'rain': 1193.8077, 'tmax':32.6068}
-STD = {'rain': 394.8365, 'tmax':1.4878}
+# MEAN = {'rain': 1193.8077, 'tmax':32.6068}
+# STD = {'rain': 394.8365, 'tmax':1.4878}
 
 
 class Interval(Enum):
@@ -106,14 +107,22 @@ class SubsetSplitter:
         return IndexSplitter(validation_indexes)(objects)
 
 
-def get_block(name:DataSourceName|str) -> TransformBlock:
-    name = str(name)
-    if name in ["rain", "tmax"]:
-        return TransformBlock(type_tfms=Normalize(MEAN[name], STD[name]) )
-    if name == "land_cover":
-        return TransformBlock()
+def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformBlock:
+    if isinstance(name, str):
+        name = DataSourceName[name.lower()]
 
-    raise NotImplementedError
+    type_tfms = []
+    if is_data_source_continuous(name):
+        stats = load_stats(
+            source_name=name,
+            roi_name=roi,
+            base_output_dir=base_dir,
+        )
+        type_tfms.append(Normalize(stats.mean, stats.sd))
+    elif name in [DataSourceName.FIRE_SCAR_EARLY, DataSourceName.FIRE_SCAR_LATE]:
+        type_tfms.append(make_binary)
+
+    return TransformBlock(type_tfms=type_tfms)
 
 
 def get_datatype(name:DataSourceName|str) -> PolyData:
@@ -122,9 +131,11 @@ def get_datatype(name:DataSourceName|str) -> PolyData:
         colours_dict = get_land_cover_colours()
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
-        return CategoricalData(len(labels), loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
-    if name in ["rain", "tmax"]:
-        return ContinuousData()
+        return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+    elif is_data_source_continuous(DataSourceName(name)):
+        return ContinuousData(name=name)
+    elif "fire" in name:
+        return BinaryData(name=name)
 
     raise NotImplementedError
 
@@ -169,11 +180,10 @@ class EcoFuture(ta.TorchApp):
         self.input_types = [get_datatype(name) for name in self.inputs]
         self.output_types = [get_datatype(name) for name in self.outputs]
         # self.output_types = self.input_types # hack
-
         base_dir = Path(base_dir)
         assert base_dir.exists(), f"Base Dir {base_dir} does not exist"
 
-        blocks = [get_block(name) for name in all_types]
+        blocks = [get_block(name, roi, base_dir) for name in all_types]
         years = list(range(start_year, end_year + 1))
         getters = [
             ChipletBlock(
