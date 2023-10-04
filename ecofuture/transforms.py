@@ -91,10 +91,16 @@ class ChipletBlock():
     def __call__(self, index):  
         arrays = []
 
-        for year in self.years:
+        print(self.name, index)
+
+        for i, year in enumerate(self.years):
+            print(year)
+            # chiplets = self.chiplets[i]
+            # if True:
             with chiplets_reader(year=year, **self.kwargs) as chiplets:
-                print(year, index)
+                print('in context')
                 chiplet_data = np.array(chiplets[index,:,:])
+                print('got data')
                 # nans = np.isnan(chiplet_data)
                 # if nans.any():
                 #     chiplet_data = np.nan_to_num(chiplet_data, nan=chiplet_data[~np.isnan(chiplet_data)].mean())
@@ -111,6 +117,7 @@ class ChipletBlock():
         
         # if torch.isnan(data).any():
         #     raise ValueError(f"NaN in {self.name}, {self.years}, index={index}")
+        print('finish', self.name, index)
 
         return data
 

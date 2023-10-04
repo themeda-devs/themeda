@@ -48,7 +48,7 @@ KERNEL=15
 HIDDEN=64
 EMBEDDING=16
 
-RUN_NAME=memmap-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-8G
+RUN_NAME=reader-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-8G
 
 poetry run ecofuture train \
     --input land_cover --input tmax --input rain \
