@@ -69,111 +69,29 @@ class ChipletBlock():
         self.base_size = base_size
         self.pad_size = pad_size
         self.base_dir = base_dir
-        self.kwargs = dict(
-            source_name=name,
-            roi_name=roi,
-            base_size_pix=base_size,
-            pad_size_pix=pad_size,
-            base_output_dir=base_dir,
-        )
-        # self.chiplets = [
-        #     load_chiplets(
-        #         source_name=name,
-        #         year=year,
-        #         roi_name=roi,
-        #         base_size_pix=base_size,
-        #         pad_size_pix=pad_size,
-        #         base_output_dir=base_dir,
-        #     )
-        #     for year in years
-        # ]
-    
-    def __call__(self, index):  
-        arrays = []
-
-        print(self.name, index)
-
-        for i, year in enumerate(self.years):
-            print(year)
-            # chiplets = self.chiplets[i]
-            # if True:
-            with chiplets_reader(year=year, **self.kwargs) as chiplets:
-                print('in context')
-                chiplet_data = np.array(chiplets[index,:,:])
-                print('got data')
-                # nans = np.isnan(chiplet_data)
-                # if nans.any():
-                #     chiplet_data = np.nan_to_num(chiplet_data, nan=chiplet_data[~np.isnan(chiplet_data)].mean())
-
-                chiplet_data = np.expand_dims(chiplet_data, axis=0)
-
-                arrays.append(chiplet_data)
-
-        data = torch.tensor(np.concatenate(arrays))
-        del arrays
-
-        if isinstance(data, torch.ByteTensor):
-            data = data.int()
         
-        # if torch.isnan(data).any():
-        #     raise ValueError(f"NaN in {self.name}, {self.years}, index={index}")
-        print('finish', self.name, index)
-
-        return data
-
-
-class ChipletBlockOLD():
-    def __init__(self, base_dir:Path, dates:List[datetime], pad_value:int=0, max_years:int=0, pad:bool=True): # hack
-        super().__init__()
-        # super().__init__(item_tfms=[self.tuple_to_tensor])
-        self.dates = dates
-        self.base_dir = Path(base_dir)
-        self.pad_value = pad_value
-        self.max_years = max_years
-        self.time_dims = min(self.max_years, len(self.dates)) if self.max_years else len(self.dates)
-        self.pad = pad
-
-    def get_paths(self, item:Chiplet):
-        paths = [
-            self.base_dir/f"ecofuture_chiplet_{self.base_dir.name}_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
-            for date in self.dates
+        self.chiplets = [
+            load_chiplets(
+                source_name=name,
+                year=year,
+                roi_name=roi,
+                base_size_pix=base_size,
+                pad_size_pix=pad_size,
+                base_output_dir=base_dir,
+            )
+            for year in years
         ]
-
-        # filter for paths that exist
-        paths = [path for path in paths if path.exists()]
-        
-        if len(paths) > self.time_dims:
-            start = random.randint(0,len(paths)-self.time_dims)
-            end = start + self.time_dims
-            paths = paths[start:end]
-
-        return paths
-
-    # def tuple_to_tensor(self, item:Chiplet):
-
-    def get_position(self, item:Chiplet):
-        paths = self.get_paths(item)
-        assert len(paths) > 0
-        path = paths[0]
-        data = np.load(path, allow_pickle=True)
-        return data["position"]
     
-    def __call__(self, item:Chiplet):   
-        self.pad = False # hack
-        arrays = []
-        for path in self.get_paths(item):
-            data = np.load(path, allow_pickle=True)
-            arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+    def __call__(self, index:int):  
+        pixels = self.base_size + self.pad_size * 2
+        # shape of data will be:
+        # (years, y, x)
+        dtype = torch.int if self.chiplets[0].dtype == np.uint8 else torch.float16
+        data = torch.empty( (len(self.chiplets), pixels, pixels), dtype=dtype )
 
-        assert len(arrays) != 0, f"Number of timesteps is zero for chiplet {item} \nPaths:\n{self.get_paths(item)}"
-
-        if self.pad and len(arrays) < self.time_dims:
-            arrays.extend( [torch.full_like(arrays[0], self.pad_value)]* (self.time_dims-len(arrays)))
-            assert len(arrays) == self.time_dims
-
-        data = torch.cat(arrays)
-        if isinstance(data, torch.ByteTensor):
-            data = data.int()
+        for i, chiplets_for_year in enumerate(self.chiplets):
+            data[i] = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
+        
         return data
 
 

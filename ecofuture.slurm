@@ -30,6 +30,31 @@ export PATH=/home/rturnbull/runting/poetry-py3.9.6/bin:$PATH
 
 export BASE_DIR=/data/gpfs/projects/punim1932/data_wip
 
+
+BATCH=1
+LEARNING_RATE=0.001
+KERNEL=15
+HIDDEN=64
+EMBEDDING=16
+
+RUN_NAME=h-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-2
+
+poetry run ecofuture train \
+    --input land_cover --input rain --input tmax \
+    --output land_cover \
+    --validation-subset 1 --batch-size $BATCH \
+    --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
+    --kernel-size $KERNEL --embedding-size $EMBEDDING \
+    --base-dir $BASE_DIR \
+    --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+    --max-years 25 \
+    --wandb --wandb-entity punim1932
+
+
+#    --output land_cover  \
+
+
+
 # copy to ssd
 # export SSD_BASE_DIR=/tmp/ecofuture-data
 # echo Copying to $SSD_BASE_DIR
@@ -41,24 +66,3 @@ export BASE_DIR=/data/gpfs/projects/punim1932/data_wip
 # cp -r /data/scratch/projects/punim1932/chiplets_wip $SSD_BASE_DIR/chiplets
 # echo Finished copying to $SSD_BASE_DIR
 # ls -l $SSD_BASE_DIR
-
-BATCH=4
-LEARNING_RATE=0.001
-KERNEL=15
-HIDDEN=64
-EMBEDDING=16
-
-RUN_NAME=reader-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-8G
-
-poetry run ecofuture train \
-    --input land_cover --input tmax --input rain \
-    --output land_cover \
-    --validation-subset 1 --batch-size $BATCH \
-    --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
-    --kernel-size $KERNEL --embedding-size $EMBEDDING \
-    --base-dir $BASE_DIR \
-    --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
-    --wandb --wandb-entity punim1932
-
-
-#    --output land_cover  \

@@ -13,7 +13,7 @@ import torch.nn.functional as F
 
 from polytorch.plots import format_fig
 
-from .colours import LEVEL4_COLOURS
+from .util import LEVEL4_COLOURS
 from .metrics import kl_divergence_proportions_tensors
 
 def plotly_discrete_colorscale(colors):

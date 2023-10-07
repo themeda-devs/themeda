@@ -35,9 +35,9 @@ import torch.nn.functional as F
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel, ProportionsLSTMModel
 from .transforms import ChipletBlock, Normalize, make_binary
-from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions
+from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
-from .colours import get_land_cover_colours
+from .util import get_land_cover_colours
 from .loss import ProportionLoss
 
 # MEAN = {'rain': 1193.8077, 'tmax':32.6068}
@@ -185,6 +185,8 @@ class EcoFuture(ta.TorchApp):
 
         blocks = [get_block(name, roi, base_dir) for name in all_types]
         years = list(range(start_year, end_year + 1))
+        if max_years:
+            years = years[-max_years:]
         getters = [
             ChipletBlock(
                 name=name,
@@ -202,6 +204,8 @@ class EcoFuture(ta.TorchApp):
             base_output_dir=base_dir,
             pad_size_pix=pad_size,
         )
+        if max_chiplets:
+            table = table.sample(max_chiplets)
 
         indexes = table['index']
         splitter = IndexSplitter(table['subset_num'] == validation_subset)
@@ -313,7 +317,9 @@ class EcoFuture(ta.TorchApp):
                 metrics += [
                     partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
                     partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
-                    partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalCategoricalAccuracy(data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalKLDivergence(data_index=data_index, feature_axis=feature_axis),
+                    # partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
                 ]
 
             elif output in ["rain", "tmax"]:
