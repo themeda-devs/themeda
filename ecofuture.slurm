@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 32:00:00
+#SBATCH -t 03:00:00
 
 #SBATCH --mem-per-cpu=8G
 
@@ -37,10 +37,10 @@ KERNEL=15
 HIDDEN=64
 EMBEDDING=16
 
-RUN_NAME=h-b$BATCH-k$KERNEL-lr$LEARNING_RATE-e$EMBEDDING-LC-tmax-rain-outLC-2
+RUN_NAME=test-epoch1
 
 poetry run ecofuture train \
-    --input land_cover --input rain --input tmax \
+    --input land_cover \
     --output land_cover \
     --validation-subset 1 --batch-size $BATCH \
     --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
@@ -48,6 +48,7 @@ poetry run ecofuture train \
     --base-dir $BASE_DIR \
     --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
     --max-years 25 \
+    --epoch 1 \
     --wandb --wandb-entity punim1932
 
 

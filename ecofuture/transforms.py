@@ -70,25 +70,37 @@ class ChipletBlock():
         self.pad_size = pad_size
         self.base_dir = base_dir
         
-        self.chiplets = [
-            load_chiplets(
-                source_name=name,
-                year=year,
-                roi_name=roi,
-                base_size_pix=base_size,
-                pad_size_pix=pad_size,
-                base_output_dir=base_dir,
-            )
-            for year in years
-        ]
-    
+        self.chiplets = []
+        for year in years:
+            try:
+                chiplets_for_year = load_chiplets(
+                    source_name=name,
+                    year=year,
+                    roi_name=roi,
+                    base_size_pix=base_size,
+                    pad_size_pix=pad_size,
+                    base_output_dir=base_dir,
+                )
+                self.chiplets.append(chiplets_for_year)
+            except FileNotFoundError as err:
+                pass
+            
+
+
     def __call__(self, index:int):  
+        # If the dataset is constant and there is only one year available, repeat the tensor
+        if len(self.chiplets) == 1 and len(self.years) > 1:
+            chiplets_for_year = self.chiplets[0]
+            data = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
+            data = data.expand(len(self.years),-1,-1)
+            return data
+
         pixels = self.base_size + self.pad_size * 2
         # shape of data will be:
         # (years, y, x)
         dtype = torch.int if self.chiplets[0].dtype == np.uint8 else torch.float16
         data = torch.empty( (len(self.chiplets), pixels, pixels), dtype=dtype )
-
+        
         for i, chiplets_for_year in enumerate(self.chiplets):
             data[i] = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
         
