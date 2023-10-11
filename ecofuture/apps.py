@@ -132,6 +132,13 @@ def get_datatype(name:DataSourceName|str) -> PolyData:
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
         return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+    elif name == "land_use":
+        from ecofuture_preproc.land_use.labels import get_cmap
+
+        colourmap = get_cmap()
+        labels = [entry.label for entry in colourmap]
+        colours = [entry.hex for entry in colourmap]
+        return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
     elif is_data_source_continuous(DataSourceName(name)):
         return ContinuousData(name=name)
     elif "fire" in name:

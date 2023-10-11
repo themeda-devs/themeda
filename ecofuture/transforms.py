@@ -69,8 +69,10 @@ class ChipletBlock():
         self.base_size = base_size
         self.pad_size = pad_size
         self.base_dir = base_dir
+
+        assert len(years) > 1
         
-        self.chiplets = []
+        chiplets_dict = {}
         for year in years:
             try:
                 chiplets_for_year = load_chiplets(
@@ -81,11 +83,21 @@ class ChipletBlock():
                     pad_size_pix=pad_size,
                     base_output_dir=base_dir,
                 )
-                self.chiplets.append(chiplets_for_year)
+                chiplets_dict[year] = chiplets_for_year
             except FileNotFoundError as err:
                 pass
-            
+        
+        # if the number of chiplets isn't available per year, then get the closest year
+        # a special case is if there is only one year, then we just expland the tensor in the call function
+        if 1 < len(chiplets_dict) < len(years):
+            closest_chiplets = {}
+            available_years = list(chiplets_dict.keys())
+            for year in years:
+                closest_year = min(available_years, key=lambda x: abs(year - x))
+                closest_chiplets[year] = chiplets_dict[closest_year]
+            chiplets_dict = closest_chiplets
 
+        self.chiplets = list(chiplets_dict.values())
 
     def __call__(self, index:int):  
         # If the dataset is constant and there is only one year available, repeat the tensor
@@ -105,6 +117,15 @@ class ChipletBlock():
             data[i] = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
         
         return data
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state["chiplets"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.chiplets = []
 
 
 class Normalize(DisplayedTransform):
