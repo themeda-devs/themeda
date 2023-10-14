@@ -34,7 +34,7 @@ import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel, ProportionsLSTMModel
-from .transforms import ChipletBlock, Normalize, make_binary
+from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
 from .util import get_land_cover_colours
@@ -147,6 +147,34 @@ def get_datatype(name:DataSourceName|str) -> PolyData:
     raise NotImplementedError
 
 
+def get_chiplet_block( 
+    name,
+    years,
+    roi,
+    base_size,
+    pad_size,
+    base_dir,
+):
+    kwargs = dict(
+        name=name,
+        roi=roi,
+        base_size=base_size,
+        pad_size=pad_size,
+        base_dir=base_dir,
+    )
+
+    if name == DataSourceName.SOIL_CLAY:
+        return StaticChipletBlock(dataset_year=2021, n_years=len(years), **kwargs)
+    elif name == DataSourceName.SOIL_ECE:
+        return StaticChipletBlock(dataset_year=2014, n_years=len(years), **kwargs)
+    elif name == DataSourceName.SOIL_DEPTH:
+        return StaticChipletBlock(dataset_year=2019, n_years=len(years), **kwargs)
+    elif name == DataSourceName.ELEVATION:
+        return StaticChipletBlock(dataset_year=2011, n_years=len(years), **kwargs)
+
+    return ChipletBlock(years=years, **kwargs)
+
+
 class EcoFuture(ta.TorchApp):
     """
     A model to forecast changes to ecosystems in Australia.
@@ -195,7 +223,7 @@ class EcoFuture(ta.TorchApp):
         if max_years:
             years = years[-max_years:]
         getters = [
-            ChipletBlock(
+            get_chiplet_block(
                 name=name,
                 years=years,
                 roi=roi,
@@ -211,6 +239,7 @@ class EcoFuture(ta.TorchApp):
             base_output_dir=base_dir,
             pad_size_pix=pad_size,
         )
+
         if max_chiplets:
             table = table.sample(max_chiplets)
 

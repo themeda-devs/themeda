@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 32:00:00
+#SBATCH -t 34:00:00
 
 #SBATCH --mem-per-cpu=8G
 
@@ -37,10 +37,13 @@ KERNEL=15
 HIDDEN=64
 EMBEDDING=16
 
-RUN_NAME=lc-r-t-e-fe-lu
+
+RUN_NAME=themeda-all
 
 poetry run ecofuture train \
-    --input land_cover --input rain --input tmax --input elevation --input fire_scar_early --input land_use \
+    --input land_cover --input rain --input tmax --input elevation --input land_use \
+    --input fire_scar_early  --input fire_scar_late \
+    --input soil_ece --input soil_clay --input soil_depth \
     --output land_cover \
     --validation-subset 1 --batch-size $BATCH \
     --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
@@ -49,20 +52,3 @@ poetry run ecofuture train \
     --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
     --max-years 25 \
     --wandb --wandb-entity punim1932
-
-
-#    --output land_cover  \
-
-
-
-# copy to ssd
-# export SSD_BASE_DIR=/tmp/ecofuture-data
-# echo Copying to $SSD_BASE_DIR
-# rsync should work but this command is having issues
-# rsync –avL $BASE_DIR $SSD_BASE_DIR
-
-# mkdir $SSD_BASE_DIR
-# cp -r $BASE_DIR/chiplet_table $SSD_BASE_DIR/chiplet_table
-# cp -r /data/scratch/projects/punim1932/chiplets_wip $SSD_BASE_DIR/chiplets
-# echo Finished copying to $SSD_BASE_DIR
-# ls -l $SSD_BASE_DIR

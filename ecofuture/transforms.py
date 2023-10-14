@@ -87,9 +87,12 @@ class ChipletBlock():
             except FileNotFoundError as err:
                 pass
         
+        # make sure that the number of chiplets found is greater than one
+        # If it is one, then it should be using the StaticChipletBlock which is faster to load
+        assert len(chiplets_dict) > 1, f"ChipletBlock for {self.name} only found one year's data."
+
         # if the number of chiplets isn't available per year, then get the closest year
-        # a special case is if there is only one year, then we just expland the tensor in the call function
-        if 1 < len(chiplets_dict) < len(years):
+        if len(chiplets_dict) < len(years):
             closest_chiplets = {}
             available_years = list(chiplets_dict.keys())
             for year in years:
@@ -97,16 +100,12 @@ class ChipletBlock():
                 closest_chiplets[year] = chiplets_dict[closest_year]
             chiplets_dict = closest_chiplets
 
+        if len(chiplets_dict) == 0:
+            raise ValueError(f"Error reading chiplets for {name}")
+
         self.chiplets = list(chiplets_dict.values())
 
     def __call__(self, index:int):  
-        # If the dataset is constant and there is only one year available, repeat the tensor
-        if len(self.chiplets) == 1 and len(self.years) > 1:
-            chiplets_for_year = self.chiplets[0]
-            data = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
-            data = data.expand(len(self.years),-1,-1)
-            return data
-
         pixels = self.base_size + self.pad_size * 2
         # shape of data will be:
         # (years, y, x)
@@ -126,6 +125,50 @@ class ChipletBlock():
     def __setstate__(self, state):
         self.__dict__.update(state)
         self.chiplets = []
+
+
+class StaticChipletBlock():
+    """ A Chiplet Block for data sources which only are given for a single year and are deemed constant. """
+    def __init__(
+        self,    
+        name,
+        dataset_year:int,
+        n_years:int,
+        roi,
+        base_size,
+        pad_size,
+        base_dir,
+    ):
+        self.name = name
+        self.dataset_year = dataset_year
+        self.n_years = n_years
+        self.roi = roi
+        self.base_size = base_size
+        self.pad_size = pad_size
+        self.base_dir = base_dir
+
+        self.chiplets_for_year = load_chiplets(
+            source_name=name,
+            year=dataset_year,
+            roi_name=roi,
+            base_size_pix=base_size,
+            pad_size_pix=pad_size,
+            base_output_dir=base_dir,
+        )
+        
+    def __call__(self, index:int):  
+        data = torch.as_tensor(np.array(self.chiplets_for_year[index,:,:], copy=False))
+        data = data.expand(self.n_years,-1,-1)
+        return data
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state["chiplets_for_year"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.chiplets_for_year = None
 
 
 class Normalize(DisplayedTransform):
