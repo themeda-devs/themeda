@@ -8,7 +8,7 @@ This report presents the findings of hypothesis testing conducted on the tfid di
 
 ### <ins> Data Collection:</ins>
 
-A dataset of chiplets was obtained, consisting of 4030 chips collected over a span of 31 years from 1988 to 2020.
+A dataset of chiplets was obtained, consisting of 4030 chips collected over a span of 31 years from 1988 to 2018.
 
 ```python
 subset_instance_nums = list(range(1,13000,100))
@@ -94,7 +94,7 @@ The hypothesis testing results revealed the following:
 
 2. <ins>Significance Level (alpha) = 0.05:</ins> When using a significance level of 0.05, approximately 26.41% of the hypothesis tests resulted in a failure to accept the null hypothesis, indicating significant differences in the tfid distributions between consecutive years. Contrary to the significant differences, approximately 73.59% of the tested chip positions did not exhibit significant differences in tfid distributions between consecutive years. This suggests that the tfid distributions remained relatively consistent over time for a majority of the chips.
 
-3. <ins>Significance Level (alpha) = 0.3:</ins> When using a lower significance level of 0.01, the percentage of failed hypothesis tests decreased to 0.17%. 
+3. <ins>Significance Level (alpha) = 0.01:</ins> When using a lower significance level of 0.01, the percentage of failed hypothesis tests decreased to 17%. 
 
 ## **Conclusion**
 
