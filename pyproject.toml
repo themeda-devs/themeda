@@ -76,8 +76,6 @@ build-backend = "poetry.core.masonry.api"
 [tool.poetry.scripts]
 themeda = "themeda.apps:Themeda.main"
 themeda-proportion = "themeda.apps:ThemedaProportionsApp.main"
-themeda_preproc = "themeda.preproc.cli:run"
-themeda_preproc_spartan = "themeda.preproc.spartan:run"
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"
