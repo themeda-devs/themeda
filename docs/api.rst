@@ -2,7 +2,7 @@
 API Reference
 =======================
 
-.. automodule:: ecofuture.apps
+.. automodule:: themeda.apps
     :members:
     :inherited-members:
 

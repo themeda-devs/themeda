@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # To give your job a name, replace "MyJob" with an appropriate name
-#SBATCH --job-name=ecofuture
+#SBATCH --job-name=themeda
 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -32,4 +32,4 @@ export SMOOTHING=.1
 export MAX_YEARS=2
 # export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-5
 export RUN_NAME=test-multi
-poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --max-chiplets 20 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --temporal-processor-type GRU
+poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --max-chiplets 20 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --temporal-processor-type GRU

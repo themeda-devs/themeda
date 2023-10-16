@@ -34,7 +34,7 @@ def write_to_csv(list_outs,out_csv_name,header):
         writer.writerows(rows)
 
 last_n_lines = 8
-results_dir = '/data/gpfs/projects/punim1932/NorthAustMDAP/'
+results_dir = '/data/gpfs/projects/punim1932/themeda/'
 directory = Path(results_dir)
 slurm_jobs_name = 'slurm-49066091_'
 out_csv_name = 'validation-persistence.csv'

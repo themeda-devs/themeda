@@ -332,7 +332,7 @@ class ResnetSpatialEncoder(nn.Module):
         return x, initial, l1, l2, l3, l4
 
 
-class EcoFutureModel(nn.Module):
+class ThemedaModel(nn.Module):
     def __init__(
         self,
         input_types:List[PolyData],
@@ -417,7 +417,7 @@ class EcoFutureModel(nn.Module):
         return split_tensor(decoded, self.output_types, feature_axis=2)
 
 
-class EcoFutureModelUNet(nn.Module):
+class ThemedaModelUNet(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
@@ -464,7 +464,7 @@ class EcoFutureModelUNet(nn.Module):
         return split_tensor(decoded, self.output_types, feature_axis=2)
 
 
-class EcoFutureModelSimpleConv(nn.Module):
+class ThemedaModelSimpleConv(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],

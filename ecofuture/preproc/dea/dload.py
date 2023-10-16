@@ -7,19 +7,19 @@ import shapely
 
 import tqdm
 
-import ecofuture.preproc.dload
-import ecofuture.preproc.roi
-import ecofuture.preproc.chips
+import themeda.preproc.dload
+import themeda.preproc.roi
+import themeda.preproc.chips
 
-import ecofuture.preproc.dea.meta
+import themeda.preproc.dea.meta
 
 
 def get_valid_grid_refs(
     region_file: typing.Union[pathlib.Path, str],
     metadata_dir: typing.Union[pathlib.Path, str],
-) -> list[ecofuture.preproc.chips.GridRef]:
+) -> list[themeda.preproc.chips.GridRef]:
 
-    region = ecofuture.preproc.roi.get_region(region_file=pathlib.Path(region_file))
+    region = themeda.preproc.roi.get_region(region_file=pathlib.Path(region_file))
 
     metadata_dir = pathlib.Path(metadata_dir)
 
@@ -29,7 +29,7 @@ def get_valid_grid_refs(
 
     for metadata_path in metadata_paths:
 
-        metadata = ecofuture.preproc.dea.meta.get_metadata(
+        metadata = themeda.preproc.dea.meta.get_metadata(
             filename=metadata_path.name,
             metadata_dir=metadata_dir,
         )
@@ -42,7 +42,7 @@ def get_valid_grid_refs(
         )
 
         if intersecting:
-            chip_metadata = ecofuture.preproc.chips.parse_chip_filename(
+            chip_metadata = themeda.preproc.chips.parse_chip_filename(
                 filename=pathlib.Path(metadata["measurements"]["level4"]["path"])
             )
             grid_refs.append(chip_metadata.grid_ref)
@@ -128,7 +128,7 @@ def download(
 
                 url = protocol + str(remote_path)
 
-                ecofuture.preproc.dload.download_file(
+                themeda.preproc.dload.download_file(
                     url=url,
                     output_path=output_path,
                     overwrite=True,
@@ -142,7 +142,7 @@ def download(
 
 
 def get_remote_path(
-    grid_ref: ecofuture.preproc.chips.GridRef,
+    grid_ref: themeda.preproc.chips.GridRef,
     year: int,
     measurement: str = "level4",
 ) -> pathlib.Path:

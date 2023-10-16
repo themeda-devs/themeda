@@ -6,8 +6,8 @@ Pre-processing launcher with arguments set for running on `spartan`.
 import argparse
 import pathlib
 
-import ecofuture.preproc.dea.preproc
-import ecofuture.preproc.climate.preproc
+import themeda.preproc.dea.preproc
+import themeda.preproc.climate.preproc
 
 
 def run() -> None:
@@ -65,7 +65,7 @@ def run() -> None:
         if args.dont_save_chips:
             chip_dir = None
 
-        ecofuture.preproc.climate.preproc.run(
+        themeda.preproc.climate.preproc.run(
             raw_data_dir=raw_data_dir,
             chip_dir=chip_dir,
             dea_chip_dir=dea_chip_dir,
@@ -78,7 +78,7 @@ def run() -> None:
 
     elif args.measurement == "level4":
 
-        ecofuture.preproc.dea.preproc.run(
+        themeda.preproc.dea.preproc.run(
             metadata_dir=raw_data_dir,
             chip_dir=chip_dir,
             chiplet_dir=chiplet_dir,

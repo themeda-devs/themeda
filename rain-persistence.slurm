@@ -37,7 +37,7 @@ for category in rain ; do
    export CATEGORY_DIR=$CHIPLET_DIR/$category
    mkdir -p $CATEGORY_DIR
    for year in $(seq 1988 2018) ; do 
-       for x in $( ls -1 /data/gpfs/projects/punim1932/Data/chiplets/${category}/ecofuture_chiplet_${category}_${year}_subset_* ) ; do 
+       for x in $( ls -1 /data/gpfs/projects/punim1932/Data/chiplets/${category}/themeda_chiplet_${category}_${year}_subset_* ) ; do 
            unzip $x -d ${CATEGORY_DIR}
        done
    done

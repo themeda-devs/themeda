@@ -6,8 +6,8 @@ import pathlib
 import typing
 import functools
 
-import ecofuture.preproc.climate.dload
-import ecofuture.preproc.climate.chiplets
+import themeda.preproc.climate.dload
+import themeda.preproc.climate.chiplets
 
 
 def run(
@@ -45,12 +45,12 @@ def run(
         # pass `year` as `None`)
         if year is not None:
             dload_func = functools.partial(
-                ecofuture.preproc.climate.dload.download,
+                themeda.preproc.climate.dload.download,
                 start_year=year,
                 end_year=year,
             )
         else:
-            dload_func = ecofuture.preproc.climate.dload.download
+            dload_func = themeda.preproc.climate.dload.download
 
         # download the raw climate data
         dload_func(
@@ -64,7 +64,7 @@ def run(
         if chip_dir is not None:
 
             # convert raw data to chips
-            ecofuture.preproc.climate.chips.save_chips(
+            themeda.preproc.climate.chips.save_chips(
                 raw_climate_dir=raw_data_dir,
                 measurement=measurement,
                 dea_chip_dir=dea_chip_dir,
@@ -72,7 +72,7 @@ def run(
                 overwrite=overwrite,
             )
 
-            ecofuture.preproc.chiplets.save_chiplets(
+            themeda.preproc.chiplets.save_chiplets(
                 chip_dir=chip_dir,
                 chiplet_dir=chiplet_dir,
                 region_file=region_file,
@@ -83,7 +83,7 @@ def run(
 
         else:
 
-            chips = ecofuture.preproc.climate.chiplets.form_chips(
+            chips = themeda.preproc.climate.chiplets.form_chips(
                 raw_climate_dir=raw_data_dir,
                 dea_chip_dir=dea_chip_dir,
                 measurement=measurement,
@@ -93,7 +93,7 @@ def run(
 
             for year_chips in chips:
 
-                ecofuture.preproc.chiplets.save_chiplets(
+                themeda.preproc.chiplets.save_chiplets(
                     chips=year_chips,
                     chip_dir=None,
                     chiplet_dir=chiplet_dir,

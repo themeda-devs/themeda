@@ -5,7 +5,7 @@ Downloading the raw data from the ANU Climate Database.
 import pathlib
 import typing
 
-import ecofuture.preproc.dload
+import themeda.preproc.dload
 
 
 def download(
@@ -54,7 +54,7 @@ def download(
             url = protocol + str(remote_path)
 
             try:
-                ecofuture.preproc.dload.download_file(
+                themeda.preproc.dload.download_file(
                     url=url, output_path=output_path, overwrite=True
                 )
             except ValueError:

@@ -14,9 +14,9 @@ import xarray as xr
 import rioxarray
 import rasterio
 
-import ecofuture.preproc.chips
-import ecofuture.preproc.chiplets
-import ecofuture.preproc.dea.preproc
+import themeda.preproc.chips
+import themeda.preproc.chiplets
+import themeda.preproc.dea.preproc
 
 
 def form_chips(
@@ -25,7 +25,7 @@ def form_chips(
     measurement: str,
     climate_chip_dir: typing.Optional[pathlib.Path] = None,
     years: typing.Optional[list[int]] = None,
-) -> typing.Iterator[ecofuture.preproc.chips.SpatialChipCollectionType]:
+) -> typing.Iterator[themeda.preproc.chips.SpatialChipCollectionType]:
     """
     Using the DEA chips as a template, this converts the raw climate data
     into corresponding chips. It returns an iterator that yields a year's
@@ -42,8 +42,8 @@ def form_chips(
         years = get_raw_years(data_dir=raw_climate_dir, measurement=measurement)
 
     # {grid_ref: {year: info}}
-    dea_chip_meta_info = ecofuture.preproc.chips.parse_chip_filenames(
-        filenames=ecofuture.preproc.chips.get_chip_filenames(
+    dea_chip_meta_info = themeda.preproc.chips.parse_chip_filenames(
+        filenames=themeda.preproc.chips.get_chip_filenames(
             chip_dir=dea_chip_dir,
             measurement="level4",
         ),
@@ -60,7 +60,7 @@ def form_chips(
             summarise=True,
         )
 
-        chips: ecofuture.preproc.chips.SpatialChipCollectionType = {}
+        chips: themeda.preproc.chips.SpatialChipCollectionType = {}
 
         for (dea_chip_pos, dea_chip_yearly_meta) in dea_chip_meta_info.items():
 
@@ -69,7 +69,7 @@ def form_chips(
             (dea_chip_meta, *_) = list(dea_chip_yearly_meta.values())
 
             # load the DEA chip - no need for the actual data
-            dea_chip = ecofuture.preproc.chips.read_chip(
+            dea_chip = themeda.preproc.chips.read_chip(
                 filename=dea_chip_meta.filename,
                 load_data=False,
             )
@@ -146,12 +146,12 @@ def save_chips(
 
 
 def gen_chip_metadata(
-    base_chip: ecofuture.preproc.chips.Chip,
+    base_chip: themeda.preproc.chips.Chip,
     year: int,
     measurement: str,
     chip_dir: typing.Optional[typing.Union[pathlib.Path, str]],
     data: typing.Optional[xr.DataArray] = None,
-) -> ecofuture.preproc.chips.Chip:
+) -> themeda.preproc.chips.Chip:
 
     if chip_dir is None:
         filename = None
@@ -163,7 +163,7 @@ def gen_chip_metadata(
             + f"{year}_{measurement}.tif"
         )
 
-    chip = ecofuture.preproc.chips.Chip(
+    chip = themeda.preproc.chips.Chip(
         year=year,
         grid_ref=base_chip.grid_ref,
         measurement=measurement,

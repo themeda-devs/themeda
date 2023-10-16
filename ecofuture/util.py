@@ -5,7 +5,7 @@ import csv
 
 def get_land_cover_column(column) -> List[str]:
     result = []
-    csv_path = importlib.resources.files("ecofuture_preproc.resources.relabel").joinpath("LCNS_codes_colours.csv")
+    csv_path = importlib.resources.files("themeda_preproc.resources.relabel").joinpath("LCNS_codes_colours.csv")
     with csv_path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(f=handle)
         for index, row in enumerate(reader):

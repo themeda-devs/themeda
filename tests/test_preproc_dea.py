@@ -6,10 +6,10 @@ import numpy as np
 
 import pytest
 
-import ecofuture.preproc.roi
-import ecofuture.preproc.chips
-import ecofuture.preproc.chiplets
-import ecofuture.preproc.dea.preproc
+import themeda.preproc.roi
+import themeda.preproc.chips
+import themeda.preproc.chiplets
+import themeda.preproc.dea.preproc
 
 
 TESTDATA_PATH = pathlib.Path(__file__).resolve().parent.parent / "test_data"
@@ -33,7 +33,7 @@ def chiplet_dir(tmp_path_factory):
 
 
 def test_saving(chip_dir, chiplet_dir, region_file):
-    ecofuture.preproc.dea.preproc.save_chiplets(
+    themeda.preproc.dea.preproc.save_chiplets(
         chip_dir=chip_dir,
         chiplet_dir=chiplet_dir,
         region_file=region_file,
@@ -42,7 +42,7 @@ def test_saving(chip_dir, chiplet_dir, region_file):
 
 def test_loading(chiplet_dir):
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         measurement=MEASUREMENT,
     )
@@ -55,7 +55,7 @@ def test_loading_year(chiplet_dir):
 
     test_year = 1989
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         years=[test_year],
         measurement=MEASUREMENT,
@@ -64,7 +64,7 @@ def test_loading_year(chiplet_dir):
     for chiplet in chiplets:
         assert chiplet.year == test_year
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         exclude_years=[test_year],
         measurement=MEASUREMENT,
@@ -78,7 +78,7 @@ def test_loading_subsets(chiplet_dir):
 
     subset_nums = [2, 4]
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         subset_nums=subset_nums,
         measurement=MEASUREMENT,
@@ -87,7 +87,7 @@ def test_loading_subsets(chiplet_dir):
     for chiplet in chiplets:
         assert chiplet.subset_num in subset_nums
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         exclude_subset_nums=subset_nums,
         measurement=MEASUREMENT,
@@ -102,7 +102,7 @@ def test_loading_subset_instance_nums(chiplet_dir):
     subset_instance_nums = [20, 10, 56, 64]
 
     # just do it for a single year/subset so can test the ordering more easily
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         years=[1989],
         subset_nums=[3],
@@ -121,7 +121,7 @@ def test_subset_nums_over_years(chiplet_dir):
 
     pos_items = collections.defaultdict(list)
 
-    chiplets = ecofuture.preproc.load_chiplets(
+    chiplets = themeda.preproc.load_chiplets(
         chiplet_dir=chiplet_dir,
         measurement=MEASUREMENT,
     )
@@ -145,10 +145,10 @@ def test_subset_nums_over_years(chiplet_dir):
 def get_random_chips(chip_dir, region_file):
 
     # need to test that the chosen TIFF file is within the region
-    region = ecofuture.preproc.roi.get_region(region_file=region_file)
+    region = themeda.preproc.roi.get_region(region_file=region_file)
 
     # pick a TIFF file
-    avail_chip_paths = ecofuture.preproc.chips.get_chip_filenames(
+    avail_chip_paths = themeda.preproc.chips.get_chip_filenames(
         chip_dir=chip_dir,
         measurement="level4",
     )
@@ -156,9 +156,9 @@ def get_random_chips(chip_dir, region_file):
 
     for chip_path in avail_chip_paths:
 
-        chip = ecofuture.preproc.chips.read_chip(filename=chip_path)
-        chip_bbox = ecofuture.preproc.roi.get_bbox(data=chip)
-        all_chip_within_region = ecofuture.preproc.roi.is_bbox_within_region(
+        chip = themeda.preproc.chips.read_chip(filename=chip_path)
+        chip_bbox = themeda.preproc.roi.get_bbox(data=chip)
+        all_chip_within_region = themeda.preproc.roi.is_bbox_within_region(
             bbox=chip_bbox, region=region
         )
 
@@ -175,17 +175,17 @@ def test_years_against_manual(
 
     # get the details of a random chip within the region
     base_chip_path = next(get_random_chips(chip_dir=chip_dir, region_file=region_file))
-    base_chip_meta = ecofuture.preproc.chips.parse_chip_filename(
+    base_chip_meta = themeda.preproc.chips.parse_chip_filename(
         filename=base_chip_path
     )
 
     year_chip_meta = []
 
-    for chip_path in ecofuture.preproc.chips.get_chip_filenames(
+    for chip_path in themeda.preproc.chips.get_chip_filenames(
         chip_dir=chip_dir, measurement="level4"
     ):
 
-        chip_meta = ecofuture.preproc.chips.parse_chip_filename(
+        chip_meta = themeda.preproc.chips.parse_chip_filename(
             filename=chip_path
         )
 
@@ -198,7 +198,7 @@ def test_years_against_manual(
 
     for chip_meta in year_chip_meta:
 
-        chip = ecofuture.preproc.chips.read_chip(
+        chip = themeda.preproc.chips.read_chip(
             filename=chip_meta.filename, load_data=True
         )
 
@@ -209,7 +209,7 @@ def test_years_against_manual(
         )
 
         # work out the position of the chiplet
-        chip_chiplet_pos = ecofuture.preproc.chiplets.Position(
+        chip_chiplet_pos = themeda.preproc.chiplets.Position(
             x=chip_chiplet.x.mean().item(),
             y=chip_chiplet.y.mean().item(),
         )
@@ -222,12 +222,12 @@ def test_years_against_manual(
         # store the data
         expected_chiplet_data[
             chip_meta.year
-        ] = ecofuture.preproc.dea.preproc.remap_data(data=chip_chiplet.values)
+        ] = themeda.preproc.dea.preproc.remap_data(data=chip_chiplet.values)
 
     # now to check against the processed chiplet data
     for (year, year_expected_chiplet_data) in expected_chiplet_data.items():
 
-        for chiplet in ecofuture.preproc.load_chiplets(
+        for chiplet in themeda.preproc.load_chiplets(
             chiplet_dir=chiplet_dir,
             years=[year],
             measurement="level4",
@@ -249,12 +249,12 @@ def test_against_manual(chip_dir, chiplet_dir, region_file):
 
     chip_path = next(get_random_chips(chip_dir=chip_dir, region_file=region_file))
 
-    chip_meta = ecofuture.preproc.chips.parse_chip_filename(filename=chip_path)
-    chip = ecofuture.preproc.chips.read_chip(filename=chip_path, load_data=True)
+    chip_meta = themeda.preproc.chips.parse_chip_filename(filename=chip_path)
+    chip = themeda.preproc.chips.read_chip(filename=chip_path, load_data=True)
 
     chiplets = [
         chiplet
-        for chiplet in ecofuture.preproc.load_chiplets(
+        for chiplet in themeda.preproc.load_chiplets(
             chiplet_dir=chiplet_dir,
             years=[chip_meta.year],
             measurement=chip_meta.measurement,
@@ -282,13 +282,13 @@ def test_against_manual(chip_dir, chiplet_dir, region_file):
             y=range(i_y_offset, i_y_offset + chiplet_size),
         )
 
-        chip_pos = ecofuture.preproc.chiplets.Position(
+        chip_pos = themeda.preproc.chiplets.Position(
             x=chip_subset.x.mean().item(),
             y=chip_subset.y.mean().item(),
         )
 
         # remap
-        chip_data = ecofuture.preproc.dea.preproc.remap_data(data=chip_subset.data)
+        chip_data = themeda.preproc.dea.preproc.remap_data(data=chip_subset.data)
 
         # find the matching chiplet
         (matching_chiplet,) = [
@@ -303,7 +303,7 @@ def test_chip_filename_parsing():
 
     example = "ga_ls_landcover_class_cyear_2_1-0-0_au_x9y-24_1993-01-01_level4"
 
-    parsed = ecofuture.preproc.chips.parse_chip_filename(
+    parsed = themeda.preproc.chips.parse_chip_filename(
         filename=pathlib.Path(example)
     )
 
@@ -319,7 +319,7 @@ def test_remapping():
     dea_data_eg = np.array([[27, 36], [103, 85]], dtype=np.uint8)
 
     # remap
-    remapped_data = ecofuture.preproc.dea.preproc.remap_data(data=dea_data_eg)
+    remapped_data = themeda.preproc.dea.preproc.remap_data(data=dea_data_eg)
 
     assert remapped_data.shape == dea_data_eg.shape
 

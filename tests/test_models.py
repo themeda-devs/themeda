@@ -1,5 +1,5 @@
 import torch
-from ecofuture import models
+from themeda import models
 from torch import nn
 
 from polytorch import ContinuousData
@@ -50,7 +50,7 @@ def test_temporal_processor_lstm():
     timesteps = 3
     height = width = 128
 
-    model = models.EcoFutureModel(
+    model = models.ThemedaModel(
         input_types=[ContinuousData()],
         temporal_processor_type="LSTM",
         decoder_type=None,
@@ -68,7 +68,7 @@ def test_temporal_processor_gru():
     timesteps = 3
     height = width = 128
 
-    model = models.EcoFutureModel(
+    model = models.ThemedaModel(
         input_types=[ContinuousData()],
         temporal_processor_type="gru",
         decoder_type=None,
@@ -87,7 +87,7 @@ def test_unet_decoder():
     timesteps = 3
     height = width = 128
 
-    model = models.EcoFutureModel(
+    model = models.ThemedaModel(
         input_types=[ContinuousData()],
         output_types=[ContinuousData(),ContinuousData()],
         temporal_processor_type="gru",

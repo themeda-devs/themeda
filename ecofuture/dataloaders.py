@@ -37,7 +37,7 @@ class PredictPersistanceCallback(Callback):
 def get_chiplets_list(chiplet_dir:Path, max_chiplets:int=0):
     chiplets = set()
     for path in Path(chiplet_dir).glob("*.npz"):
-        # path is something like: ecofuture_chiplet_level4_1988_subset_1_00004207.npz
+        # path is something like: themeda_chiplet_level4_1988_subset_1_00004207.npz
         chiplet_components = path.name.split("_")
         subset = int(chiplet_components[5])
         chiplet_id = chiplet_components[6]

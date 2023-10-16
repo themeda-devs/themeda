@@ -187,7 +187,7 @@ def get_zip_path(
     "Get the path on disk to a particular zip file"
 
     zip_path = (
-        chiplet_dir / f"ecofuture_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
+        chiplet_dir / f"themeda_chiplet_{measurement}_{year}_subset_{subset_num}.zip"
     )
 
     return zip_path
@@ -202,7 +202,7 @@ def get_zip_info(
     are contained.
     """
 
-    available_zip_paths = sorted(chiplet_dir.glob("ecofuture_chiplet*.zip"))
+    available_zip_paths = sorted(chiplet_dir.glob("themeda_chiplet*.zip"))
 
     years = []
     subset_nums = []
@@ -221,7 +221,7 @@ def get_zip_info(
         if meas != measurement:
             continue
 
-        if front != "ecofuture" or chiplet_str != "chiplet" or subset_str != "subset":
+        if front != "themeda" or chiplet_str != "chiplet" or subset_str != "subset":
             raise ValueError("Unexpected zip file name")
 
         years.append(int(year))
@@ -241,8 +241,8 @@ def parse_chiplet_filename(filename: pathlib.Path) -> ChipletFilenameInfo:
     (study, form, measurement, year, subset, subset_num, subset_instance_num) = items
 
     if (
-        not filename.stem.startswith("ecofuture_chiplet")
-        or study != "ecofuture"
+        not filename.stem.startswith("themeda_chiplet")
+        or study != "themeda"
         or form != "chiplet"
         or subset != "subset"
     ):
@@ -334,13 +334,13 @@ def get_chiplet_filename(chiplet: Chiplet) -> ChipletFilename:
 
     # the outer zip file
     container_path = pathlib.Path(
-        f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
+        f"themeda_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
         + f"{chiplet.subset_num}.zip"
     )
 
     # the path *within* the zip file
     filename = pathlib.Path(
-        f"ecofuture_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
+        f"themeda_chiplet_{chiplet.measurement}_{chiplet.year}_subset_"
         + f"{chiplet.subset_num}_{chiplet.subset_instance_num:08d}.npz"
     )
 

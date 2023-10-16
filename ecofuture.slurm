@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # To give your job a name, replace "MyJob" with an appropriate name
-#SBATCH --job-name=ecofuture
+#SBATCH --job-name=themeda
 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -40,7 +40,7 @@ EMBEDDING=16
 
 RUN_NAME=themeda-all
 
-poetry run ecofuture train \
+poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \
     --input fire_scar_early  --input fire_scar_late \
     --input soil_ece --input soil_clay --input soil_depth \

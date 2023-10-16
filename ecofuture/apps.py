@@ -26,14 +26,14 @@ from fastai.data.block import TransformBlock
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
 from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice, PolyMetric
 
-from ecofuture_preproc.source import DataSourceName, is_data_source_continuous
-from ecofuture_preproc.roi import ROIName
-from ecofuture_preproc.chiplet_table import load_table
-from ecofuture_preproc.summary_stats import load_stats
+from themeda_preproc.source import DataSourceName, is_data_source_continuous
+from themeda_preproc.roi import ROIName
+from themeda_preproc.chiplet_table import load_table
+from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, EcoFutureModelUNet, EcoFutureModel, EcoFutureModelSimpleConv, PersistenceModel, ProportionsLSTMModel
+from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModel, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
@@ -133,7 +133,7 @@ def get_datatype(name:DataSourceName|str) -> PolyData:
         colours = list(colours_dict.values())
         return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
     elif name == "land_use":
-        from ecofuture_preproc.land_use.labels import get_cmap
+        from themeda_preproc.land_use.labels import get_cmap
 
         colourmap = get_cmap()
         labels = [entry.label for entry in colourmap]
@@ -175,7 +175,7 @@ def get_chiplet_block(
     return ChipletBlock(years=years, **kwargs)
 
 
-class EcoFuture(ta.TorchApp):
+class Themeda(ta.TorchApp):
     """
     A model to forecast changes to ecosystems in Australia.
     """
@@ -184,7 +184,7 @@ class EcoFuture(ta.TorchApp):
         input:List[DataSourceName]=ta.Param(..., help="The input data types."),
         output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
         roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
-        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="ECOFUTURE_PREPROC_BASE_OUTPUT_DIR"),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="Themeda_PREPROC_BASE_OUTPUT_DIR"),
         start_year:int=ta.Param(1988, help="The start date."),
         end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
@@ -196,7 +196,7 @@ class EcoFuture(ta.TorchApp):
         base_size:int = 160,
     ) -> DataLoaders:
         """
-        Creates a FastAI DataLoaders object which EcoFuture uses in training and prediction.
+        Creates a FastAI DataLoaders object which Themeda uses in training and prediction.
         Returns:
             DataLoaders: The DataLoaders object.
         """        
@@ -277,7 +277,7 @@ class EcoFuture(ta.TorchApp):
         padding_mode:str="reflect",
     ) -> nn.Module:
         """
-        Creates a deep learning model for the EcoFuture to use.
+        Creates a deep learning model for the Themeda to use.
 
         Returns:
             nn.Module: The created model.
@@ -286,7 +286,7 @@ class EcoFuture(ta.TorchApp):
             return PersistenceModel(self.input_types)
         
         if simple:
-            return EcoFutureModelSimpleConv(
+            return ThemedaModelSimpleConv(
                 kernel_size=kernel_size,
                 input_types=self.input_types,
                 output_types=self.output_types,
@@ -297,7 +297,7 @@ class EcoFuture(ta.TorchApp):
                 padding_mode=padding_mode,
             )
         else:
-            ModelClass = EcoFutureModelUNet if fastai_unet else EcoFutureModel
+            ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModel
 
         return ModelClass(
             input_types=self.input_types,
@@ -409,7 +409,7 @@ class EcoFuture(ta.TorchApp):
         return result
 
 
-class EcofutureProportionsApp(EcoFuture):
+class ThemedaProportionsApp(Themeda):
     def model(
         self,
         hidden_size:int=256, 

@@ -18,14 +18,14 @@ sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
 
-project = "EcoFuture"
+project = "Themeda"
 copyright = "2022, Rebecca Runting, Attila Balogh, Jessie Wells, Melbourne Data Analytics Platform"
 author = "Rebecca Runting, Attila Balogh, Jessie Wells, Melbourne Data Analytics Platform"
 
 # The full version, including alpha/beta/rc tags
 release = "0.1.0"
 # import importlib.metadata
-# release = importlib.metadata.version('ecofuture')
+# release = importlib.metadata.version('themeda')
 
 
 # -- General configuration ---------------------------------------------------

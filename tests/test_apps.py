@@ -1,6 +1,6 @@
 from torchapp.testing import TorchAppTestCase
-from ecofuture.apps import EcoFuture
+from themeda.apps import Themeda
 
 
-class TestEcoFuture(TorchAppTestCase):
-    app_class = EcoFuture
+class TestThemeda(TorchAppTestCase):
+    app_class = Themeda

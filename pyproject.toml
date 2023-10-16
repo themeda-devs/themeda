@@ -1,13 +1,13 @@
 [tool.poetry]
-name = "EcoFuture"
+name = "Themeda"
 version = "0.1.0"
 description = "A model to forecast changes to ecosystems in Australia."
 authors = ["Rebecca Runting, Attila Balogh, Jessie Wells, Steven Myburgh, Melbourne Data Analytics Platform <robert.turnbull@unimelb.edu.au>"]
 license = "Apache-2.0"
 readme = "README.rst"
-repository = "https://github.com/unimelbmdap/ecofuture/"
-documentation = "https://unimelbmdap.github.io/ecofuture"
-homepage = "https://github.com/unimelbmdap/ecofuture/"
+repository = "https://github.com/unimelbmdap/themeda/"
+documentation = "https://unimelbmdap.github.io/themeda"
+homepage = "https://github.com/unimelbmdap/themeda/"
 keywords = ["fastai", "torchapp", "pytorch", "deep learning", "command-line interface"]
 # For classifiers see https://pypi.org/classifiers/
 classifiers = [
@@ -74,10 +74,10 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-ecofuture = "ecofuture.apps:EcoFuture.main"
-ecofuture-proportion = "ecofuture.apps:EcofutureProportionsApp.main"
-ecofuture_preproc = "ecofuture.preproc.cli:run"
-ecofuture_preproc_spartan = "ecofuture.preproc.spartan:run"
+themeda = "themeda.apps:Themeda.main"
+themeda-proportion = "themeda.apps:ThemedaProportionsApp.main"
+themeda_preproc = "themeda.preproc.cli:run"
+themeda_preproc_spartan = "themeda.preproc.spartan:run"
 
 [tool.mypy]
 plugins = "numpy.typing.mypy_plugin"

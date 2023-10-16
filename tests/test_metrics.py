@@ -1,5 +1,5 @@
 import torch
-from ecofuture.metrics import accuracy
+from themeda.metrics import accuracy
 
 def test_accuracy():
     batch_size = 1

@@ -1,6 +1,6 @@
-from ecofuture.transforms import ChipletBlock
-from ecofuture.dataloaders import get_chiplets_list
-from ecofuture.apps import get_dates, Interval
+from themeda.transforms import ChipletBlock
+from themeda.dataloaders import get_chiplets_list
+from themeda.apps import get_dates, Interval
 from pathlib import Path
 import typer
 from rich.progress import track

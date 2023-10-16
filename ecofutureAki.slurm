@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # To give your job a name, replace "MyJob" with an appropriate name
-#SBATCH --job-name=ecofuture
+#SBATCH --job-name=themeda
 
 #SBATCH --ntasks=1
 #SBATCH --cpus-per-task=4
@@ -33,7 +33,7 @@ for category in level4 rain tmax ; do
     export CATEGORY_DIR=$CHIPLET_DIR/$category
     mkdir -p $CATEGORY_DIR
     for year in $(seq 1988 2018) ; do 
-        for x in $( ls -1 /data/gpfs/projects/punim1932/Data/chiplets/${category}/ecofuture_chiplet_${category}_${year}_subset_* ) ; do 
+        for x in $( ls -1 /data/gpfs/projects/punim1932/Data/chiplets/${category}/themeda_chiplet_${category}_${year}_subset_* ) ; do 
             unzip $x -d ${CATEGORY_DIR}
         done
     done
@@ -46,7 +46,7 @@ done
 # export MAX_YEARS=10
 # export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-4-B
 
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
+# poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb # --wandb-entity punim1932
 
 # CHIPLET_DIR=/data/gpfs/projects/punim1932/Data/chiplets2000/
 
@@ -66,11 +66,11 @@ done
 
 # RUN_NAME=hidden${HIDDEN}-em${EMBEDDING}-k${KERNEL}-years${MAX_YEARS}-learning${LEARNING_RATE}
 
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+# poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
 #     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
 #     --max-years $MAX_YEARS --learning-rate 0.00001 --temporal-processor-type GRU --simple --dropout 0.2 \
 #     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+# poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
 #     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
 #     --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --simple --dropout 0.2 \
 #     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
@@ -89,19 +89,19 @@ Num_Conv_Layers=5
 RUN_NAME=hid${HIDDEN}-k${KERNEL}-em${EMBEDDING}-years${MAX_YEARS}-learning${LEARNING_RATE}-NumLayer${Num_Conv_Layers}-${Temporal_Processor_Type}
 
 
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+# poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
 #         --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
 #         --max-years $MAX_YEARS --learning-rate 0.0001 --temporal-processor-type GRU --wandb --simple --dropout 0.2 \
 #         --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb-entity punim1932
 
 
-poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
         --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
         --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type $Temporal_Processor_Type --wandb --simple --dropout 0.2 \
         --hidden-size $HIDDEN --num-conv-layers $Num_Conv_Layers --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb
 
 
-# poetry run ecofuture train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
+# poetry run themeda train --level4 $CHIPLET_DIR/level4 --rain $CHIPLET_DIR/rain --tmax $CHIPLET_DIR/tmax \
 #     --validation-subset 1 --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
 #     --max-years $MAX_YEARS --learning-rate $LEARNING_RATE --temporal-processor-type GRU --simple --dropout 0.2 \
 #     --hidden-size $HIDDEN --kernel-size $KERNEL --embedding-size $EMBEDDING --wandb

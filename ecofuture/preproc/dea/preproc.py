@@ -9,12 +9,12 @@ import functools
 import numpy as np
 import numpy.typing as npt
 
-import ecofuture.preproc.roi
-import ecofuture.preproc.chips
-import ecofuture.preproc.chiplets
+import themeda.preproc.roi
+import themeda.preproc.chips
+import themeda.preproc.chiplets
 
-import ecofuture.preproc.dea.meta
-import ecofuture.preproc.dea.dload
+import themeda.preproc.dea.meta
+import themeda.preproc.dea.dload
 
 
 def run(
@@ -31,13 +31,13 @@ def run(
     if download_step in ["only", "normal"]:
 
         # download the raw metadata
-        ecofuture.preproc.dea.meta.download(
+        themeda.preproc.dea.meta.download(
             output_dir=metadata_dir,
             skip_existing=not overwrite,
         )
 
         # download the raw data
-        ecofuture.preproc.dea.dload.download(
+        themeda.preproc.dea.dload.download(
             output_dir=chip_dir,
             metadata_dir=metadata_dir,
             region_file=region_file,
@@ -68,7 +68,7 @@ def save_chiplets(
 
     remapper = functools.partial(remap_data, lut=remap_lut)
 
-    ecofuture.preproc.chiplets.save_chiplets(
+    themeda.preproc.chiplets.save_chiplets(
         chip_dir=chip_dir,
         chiplet_dir=chiplet_dir,
         region_file=region_file,

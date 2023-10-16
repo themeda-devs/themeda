@@ -1,8 +1,8 @@
 import argparse
 import pathlib
 
-import ecofuture.preproc.dea.preproc
-import ecofuture.preproc.climate.preproc
+import themeda.preproc.dea.preproc
+import themeda.preproc.climate.preproc
 
 
 def run() -> None:
@@ -70,7 +70,7 @@ def run() -> None:
     args = parser.parse_args()
 
     if args.measurement == "level4":
-        ecofuture.preproc.dea.preproc.run(
+        themeda.preproc.dea.preproc.run(
             metadata_dir=args.raw_dir,
             chip_dir=args.chip_dir,
             chiplet_dir=args.chiplet_dir,
@@ -88,7 +88,7 @@ def run() -> None:
                 + "needs to be provided"
             )
 
-        ecofuture.preproc.climate.preproc.run(
+        themeda.preproc.climate.preproc.run(
             raw_data_dir=args.raw_dir,
             chip_dir=args.chip_dir,
             dea_chip_dir=args.dea_chip_dir,

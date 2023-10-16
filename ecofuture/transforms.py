@@ -11,7 +11,7 @@ from torch import Tensor
 from fastai.data.transforms import DisplayedTransform
 import numpy as np
 
-from ecofuture_preproc.chiplets import load_chiplets, chiplets_reader
+from themeda_preproc.chiplets import load_chiplets, chiplets_reader
 
 @dataclass
 class CroppedChip():
