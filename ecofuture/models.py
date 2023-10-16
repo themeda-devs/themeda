@@ -1,4 +1,4 @@
-# -*- coding: future_typing -*-
+# broken # -*- coding: future_typing -*-
 
 from typing import List
 from torch import Tensor
@@ -9,92 +9,10 @@ from enum import Enum
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
-class OrdinalTensor(torch.Tensor):
-    pass
+from polytorch import PolyEmbedding, PolyData, split_tensor, total_size, CategoricalData
 
-
-class OrdinalEmbedding(nn.Module):
-    def __init__(
-        self,
-        category_count,
-        embedding_dim,
-        bias:bool=True,
-        device=None, 
-        dtype=None,
-        **kwargs,
-    ):
-        super().__init__(**kwargs)    
-        factory_kwargs = {'device': device, 'dtype': dtype}
-
-        self.embedding_dim = embedding_dim
-        self.distance_scores = Parameter(torch.empty((category_count-1,), **factory_kwargs), requires_grad=True)
-        self.weight = Parameter(torch.empty((embedding_dim,), **factory_kwargs), requires_grad=True)
-        if bias:
-            self.bias = Parameter(torch.empty((embedding_dim,), **factory_kwargs), requires_grad=True)
-        else:
-            self.bias = Parameter(torch.zeros((embedding_dim,), **factory_kwargs), requires_grad=False)
-
-    def forward(self, x):
-        distances = torch.cumsum(F.softmax(self.distance_scores, dim=0), dim=0)
-        
-        # prepend zero
-        distances = torch.cat([torch.zeros((1,), device=distances.device, dtype=distances.dtype), distances])
-        
-        distance = torch.gather(distances, 0, x.flatten())
-        embedded = self.bias + distance.unsqueeze(1) * self.weight.unsqueeze(0)
-        embedded = embedded.reshape(x.shape + (-1,))
-
-        return embedded
-
-
-class MultiDatatypeEmbedding(nn.Module):
-    def __init__(
-        self,
-        in_channels_continuous:int=0,
-        categorical_counts:List[int]|None = None,
-        ordinal_counts:List[int]|None = None,
-        embedding_dim:int=16,        
-        **kwargs,
-    ):
-        super().__init__(**kwargs)    
-        self.embedding_dim = embedding_dim
-
-        self.in_channels_continuous = in_channels_continuous
-        if in_channels_continuous:
-            self.embeddings_continuous = nn.Embedding(in_channels_continuous, embedding_dim)
-            self.bias_continuous = nn.Embedding(in_channels_continuous, embedding_dim)
-        
-        self.categorical_counts = categorical_counts
-        if self.categorical_counts:
-            self.embeddings_categorical = nn.ModuleList([nn.Embedding(count, embedding_dim) for count in self.categorical_counts])
-
-        self.ordinal_counts = ordinal_counts
-        if self.ordinal_counts:
-            self.embeddings_ordinal = nn.ModuleList([OrdinalEmbedding(count, embedding_dim) for count in self.ordinal_counts])
-
-        assert self.in_channels_continuous or self.categorical_counts or self.ordinal_counts
-
-    def forward(self, *inputs):
-        batch_size, timesteps, height, width = inputs[0].shape
-        x = torch.zeros( (batch_size, timesteps, self.embedding_dim, height, width), device=inputs[0].device ) 
-        categorical_index = 0
-        ordinal_index = 0
-        continuous_index = torch.as_tensor(0)
-        for input in inputs:
-            if isinstance(input, OrdinalTensor):
-                embedding = self.embeddings_ordinal[ordinal_index](input)
-                ordinal_index += 1
-            elif torch.is_floating_point(input):
-                embedding = input.unsqueeze(-1) * self.embeddings_continuous(continuous_index) + self.bias_continuous(continuous_index)
-                continuous_index += 1
-            else:
-                embedding = self.embeddings_categorical[categorical_index](input.int())
-                categorical_index += 1
-            
-            embedding = embedding.permute(0, 1, 4, 2, 3)
-            x += embedding
-        return x
-
+from torchvision.models import resnet18
+from fastai.vision.learner import create_unet_model
 
 def time_distributed_combine(x):
     batch_size = x.shape[0]
@@ -107,6 +25,22 @@ def time_distributed_combine(x):
         x = x.contiguous().view(new_shape)
 
     return x, time_distributed, batch_size, timesteps
+
+def spatial_combine(x):
+    batch_size = x.shape[0]
+    width = 0
+    height = 0
+    assert len(x.shape) == 5
+
+    # Adapted from https://discuss.pytorch.org/t/any-pytorch-function-can-work-as-keras-timedistributed/1346/4
+    height = x.shape[-2]
+    width = x.shape[-1]
+    timesteps = x.shape[1]
+    features = x.shape[2]
+    new_shape = (batch_size * height * width, timesteps, features,)
+    x = x.permute(0,3,4,1,2).contiguous().view(new_shape)
+
+    return x, batch_size, height, width, timesteps, features
 
 # @torch.jit.script
 def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
@@ -269,6 +203,7 @@ class UNetDecoder(nn.Module):
         out_channels:int,
         kernel_size:int=3,
         final_upsample_dims:int=16,
+        dropout:float=0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
@@ -302,6 +237,7 @@ class UNetDecoder(nn.Module):
             out_channels=in_channels//32, 
             resblock_kernel_size=kernel_size
         )
+        self.dropout = nn.Dropout(dropout)
         self.final_layer = Conv(
             in_channels=final_upsample_dims+initial, 
             out_channels=out_channels, 
@@ -316,6 +252,12 @@ class UNetDecoder(nn.Module):
         l2, _, _, _ = time_distributed_combine(l2)
         l3, _, _, _ = time_distributed_combine(l3)
         initial, _, _, _ = time_distributed_combine(initial)
+
+        x = self.dropout(x)
+        l1 = self.dropout(l1)
+        l2 = self.dropout(l2)
+        l3 = self.dropout(l3)
+        initial = self.dropout(initial)
 
         x = self.upblock3(x,l3)
         x = self.upblock2(x,l2)
@@ -393,10 +335,9 @@ class ResnetSpatialEncoder(nn.Module):
 class EcoFutureModel(nn.Module):
     def __init__(
         self,
-        in_channels_continuous:int=0,        
-        categorical_counts:List[int]|None = None,
-        out_channels:int|None=None,
-        embedding_dim:int=16,        
+        input_types:List[PolyData],
+        output_types:List[PolyData] = None,
+        embedding_size:int=16,        
         encoder_resent:ResNet|str=ResNet.resnet18,
         encoder_weights:str="DEFAULT",
         temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
@@ -404,23 +345,22 @@ class EcoFutureModel(nn.Module):
         temporal_layers:int=2,
         temporal_size:int=512,
         temporal_bias:bool=True,
+        dropout:float=0.0,
         **kwargs,
     ):
         super().__init__(**kwargs)
-        categorical_counts = categorical_counts or []
-        self.embedding = MultiDatatypeEmbedding(
-            embedding_dim=embedding_dim,
-            categorical_counts=categorical_counts,
-            in_channels_continuous=in_channels_continuous,
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
         )
-        
-        # If the number of output channels isn't explicitly given then assume that the outputs match the inputs
-        if not out_channels:
-            out_channels = in_channels_continuous + sum(categorical_counts)
-        self.out_channels = out_channels
 
+        output_types = output_types or input_types
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+        
         self.spatial_encoder = ResnetSpatialEncoder(
-            in_channels=embedding_dim, 
+            in_channels=embedding_size, 
             encoder_resent=encoder_resent, 
             weights=encoder_weights,
         )
@@ -449,10 +389,10 @@ class EcoFutureModel(nn.Module):
         if decoder_type == "NONE":
             self.decoder = None
         elif decoder_type == "UNET":
-            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=embedding_dim)
+            self.decoder = UNetDecoder(in_channels=temporal_dims, out_channels=out_channels, initial=embedding_size, dropout=dropout)
         else:
             raise ValueError(f"Cannot recognize decoder type {decoder_type}")
-
+    
     def forward(self, *inputs):
         # Embedding
         x = self.embedding(*inputs)
@@ -473,7 +413,211 @@ class EcoFutureModel(nn.Module):
         # Decoding
         decoded = self.decoder(initial, l1, l2, l3, l4)
 
-        # TODO Split into tuple
+        # Split into tuple
+        return split_tensor(decoded, self.output_types, feature_axis=2)
 
-        return (decoded,)
 
+class EcoFutureModelUNet(nn.Module):
+    def __init__(
+        self,
+        input_types=List[PolyData],
+        output_types=List[PolyData],
+        embedding_size:int=16,        
+        encoder_resent:ResNet|str=ResNet.resnet18,
+        encoder_weights:str="DEFAULT",
+        temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
+        decoder_type:DecoderType|str=DecoderType.UNET,
+        temporal_layers:int=2,
+        temporal_size:int=512,
+        temporal_bias:bool=True,
+        **kwargs,
+    ):
+        super().__init__(**kwargs)
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        self.unet = create_unet_model(
+            arch=resnet18, 
+            n_out=out_channels, 
+            img_size=(160,160), 
+            pretrained=True, 
+            cut=None, 
+            n_in=embedding_size
+        )
+
+    def forward(self, *inputs):
+        # Embedding
+        x = self.embedding(*inputs)
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+
+        decoded = self.unet(x)
+
+        decoded = decoded.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+
+        # Split into tuple
+        return split_tensor(decoded, self.output_types, feature_axis=2)
+
+
+class EcoFutureModelSimpleConv(nn.Module):
+    def __init__(
+        self,
+        input_types=List[PolyData],
+        output_types=List[PolyData],
+        embedding_size:int=16,
+        hidden_size:int=0,    
+        kernel_size:int=1,    
+        temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
+        temporal_layers:int=2,
+        temporal_size:int=32,
+        temporal_bias:bool=True,
+        num_conv_layers:int=1, # New argument to control the number of Conv2d layers
+        padding_mode:str="zeros",
+        **kwargs,
+    ):
+        super().__init__()
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        current_size = embedding_size
+
+        self.hidden_size = hidden_size
+        if hidden_size:
+            
+            self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
+            for i in range(num_conv_layers):
+                self.hidden_convs.append(nn.Conv2d(
+                    current_size,
+                    hidden_size,
+                    kernel_size=kernel_size,
+                    padding="same",
+                    padding_mode=padding_mode,
+                ))
+                current_size = hidden_size
+
+        # Temporal Processor
+        rnn_kwargs = dict(
+            batch_first=True, 
+            bidirectional=False, 
+            input_size=current_size,
+            num_layers=temporal_layers,
+            hidden_size=temporal_size,
+            bias = temporal_bias,
+        )
+        temporal_processor_type = str(temporal_processor_type).upper()
+        self.temporal_processor_type = temporal_processor_type
+        if temporal_processor_type == "NONE":
+            self.temporal_processor = nn.Identity()
+        elif temporal_processor_type == "LSTM":
+            self.temporal_processor = nn.LSTM(**rnn_kwargs)
+            current_size = temporal_size
+        elif temporal_processor_type == "GRU":
+            self.temporal_processor = nn.GRU(**rnn_kwargs)
+            current_size = temporal_size
+        else:
+            raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
+
+
+        self.final_conv = nn.Conv2d(
+            current_size,
+            out_channels,
+            kernel_size=kernel_size,
+            padding="same",
+            padding_mode=padding_mode,
+        )
+
+
+
+    def forward(self, *inputs):
+        # Embedding       
+        x = self.embedding(*inputs)
+
+        if self.hidden_size:
+            x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+            
+            for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
+                
+                x = conv(x)
+                x = F.relu(x)
+            x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+            # breakpoint()
+
+        if self.temporal_processor_type != "NONE":
+            x, batch_size, height, width, timesteps, _ = spatial_combine(x)
+            x = self.temporal_processor(x)
+            if isinstance(x, tuple):
+                x = x[0]
+            x = F.relu(x)
+            x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
+            
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+        prediction = self.final_conv(x)
+        prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+
+        return split_tensor(prediction, self.output_types, feature_axis=2)
+
+
+class PersistenceModel(nn.Module):
+    def __init__(
+        self,
+        input_types:List[PolyData],
+        **kwargs,
+    ):
+        super().__init__()
+        self.input_types = input_types
+        self.true_logit_value = 100.0
+        self.dummy = nn.Linear(10,10)
+
+    def forward(self, *inputs):
+        results = []
+        for input, datatype in zip(inputs, self.input_types):
+            if isinstance(datatype, CategoricalData):
+                results.append(
+                    F.one_hot(input.long(), num_classes=datatype.category_count).permute(0,1,4,2,3) * self.true_logit_value
+                )
+            else:
+                results.append(input)
+
+        return tuple(results)
+    
+    
+class ProportionsLSTMModel(nn.Module):
+    def __init__(
+        self, 
+        input_types:List[PolyData],        
+        output_types:List[PolyData],        
+        hidden_size, 
+        num_layers, 
+        dropout
+    ):
+        super().__init__()
+        assert len(input_types) == 1
+        assert isinstance(input_types[0], CategoricalData)
+        assert len(output_types) == 1
+        assert isinstance(output_types[0], CategoricalData)
+        
+        self.input_size = input_types[0].category_count
+        output_size = output_types[0].category_count
+        
+        self.lstm = nn.LSTM(self.input_size, hidden_size, num_layers, batch_first=True, dropout=dropout)
+        self.fc = nn.Linear(hidden_size, output_size)
+
+    def forward(self, pixel_input):
+        # aggregate over pixels          
+        one_hot = F.one_hot(pixel_input.long(), self.input_size).float()
+        x = one_hot.mean(dim=[-3,-2])          
+        
+        out, _ = self.lstm(x)
+        out = self.fc(out[:, -1, :])  # Take the last output from the sequence
+        return out 

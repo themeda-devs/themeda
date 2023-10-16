@@ -6,12 +6,12 @@ import torch
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from fastai.data.block import TransformBlock
 import rasterio
 from torch import Tensor
-from typing import Dict
+from fastai.data.transforms import DisplayedTransform
 import numpy as np
 
+from ecofuture_preproc.chiplets import load_chiplets, chiplets_reader
 
 @dataclass
 class CroppedChip():
@@ -53,48 +53,138 @@ class Chiplet:
         return hash(f"{self.subset}_{self.id}")
 
 
-class ChipletBlock(TransformBlock):
-    def __init__(self, base_dir:Path, dates:List[datetime], ignore_index:int=21, max_years:int=0, pad:bool=True): # hack
-        super().__init__(item_tfms=[self.tuple_to_tensor])
-        self.dates = dates
-        self.base_dir = Path(base_dir)
-        self.ignore_index = ignore_index
-        self.max_years = max_years
-        self.time_dims = min(self.max_years, len(self.dates)) if self.max_years else len(self.dates)
-        self.pad = pad
+class ChipletBlock():
+    def __init__(
+        self,    
+        name,
+        years,
+        roi,
+        base_size,
+        pad_size,
+        base_dir,
+    ):
+        self.name = name
+        self.years = years
+        self.roi = roi
+        self.base_size = base_size
+        self.pad_size = pad_size
+        self.base_dir = base_dir
 
-    def get_paths(self, item:Chiplet):
-        paths = [
-            self.base_dir/f"ecofuture_chiplet_level4_{date.strftime('%Y')}_subset_{item.subset}_{item.id}" 
-            for date in self.dates
-        ]
-
-        # filter for paths that exist
-        paths = [path for path in paths if path.exists()]
+        assert len(years) > 1
         
-        if len(paths) > self.time_dims:
-            start = random.randint(0,len(paths)-self.time_dims)
-            end = start + self.time_dims
-            paths = paths[start:end]
+        chiplets_dict = {}
+        for year in years:
+            try:
+                chiplets_for_year = load_chiplets(
+                    source_name=name,
+                    year=year,
+                    roi_name=roi,
+                    base_size_pix=base_size,
+                    pad_size_pix=pad_size,
+                    base_output_dir=base_dir,
+                )
+                chiplets_dict[year] = chiplets_for_year
+            except FileNotFoundError as err:
+                pass
+        
+        # make sure that the number of chiplets found is greater than one
+        # If it is one, then it should be using the StaticChipletBlock which is faster to load
+        assert len(chiplets_dict) > 1, f"ChipletBlock for {self.name} only found one year's data."
 
-        return paths
+        # if the number of chiplets isn't available per year, then get the closest year
+        if len(chiplets_dict) < len(years):
+            closest_chiplets = {}
+            available_years = list(chiplets_dict.keys())
+            for year in years:
+                closest_year = min(available_years, key=lambda x: abs(year - x))
+                closest_chiplets[year] = chiplets_dict[closest_year]
+            chiplets_dict = closest_chiplets
 
-    def tuple_to_tensor(self, item:Chiplet):
-        arrays = []
-        for path in self.get_paths(item):
-            data = np.load(path, allow_pickle=True)
-            arrays.append(torch.as_tensor(data["data"]).unsqueeze(0))
+        if len(chiplets_dict) == 0:
+            raise ValueError(f"Error reading chiplets for {name}")
 
-        if self.pad and len(arrays) < self.time_dims:
-            arrays.extend( [torch.full_like(arrays[0], self.ignore_index)]* (self.time_dims-len(arrays)))
+        self.chiplets = list(chiplets_dict.values())
 
-        assert len(arrays) == self.time_dims
+    def __call__(self, index:int):  
+        pixels = self.base_size + self.pad_size * 2
+        # shape of data will be:
+        # (years, y, x)
+        dtype = torch.int if self.chiplets[0].dtype == np.uint8 else torch.float16
+        data = torch.empty( (len(self.chiplets), pixels, pixels), dtype=dtype )
+        
+        for i, chiplets_for_year in enumerate(self.chiplets):
+            data[i] = torch.as_tensor(np.array(chiplets_for_year[index,:,:], copy=False))
+        
+        return data
 
-        return torch.cat(arrays).long()
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state["chiplets"]
+        return state
 
-    def get_position(self, item:Chiplet):
-        paths = self.get_paths(item)
-        assert len(paths) > 0
-        path = paths[0]
-        data = np.load(path, allow_pickle=True)
-        return data["position"]
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.chiplets = []
+
+
+class StaticChipletBlock():
+    """ A Chiplet Block for data sources which only are given for a single year and are deemed constant. """
+    def __init__(
+        self,    
+        name,
+        dataset_year:int,
+        n_years:int,
+        roi,
+        base_size,
+        pad_size,
+        base_dir,
+    ):
+        self.name = name
+        self.dataset_year = dataset_year
+        self.n_years = n_years
+        self.roi = roi
+        self.base_size = base_size
+        self.pad_size = pad_size
+        self.base_dir = base_dir
+
+        self.chiplets_for_year = load_chiplets(
+            source_name=name,
+            year=dataset_year,
+            roi_name=roi,
+            base_size_pix=base_size,
+            pad_size_pix=pad_size,
+            base_output_dir=base_dir,
+        )
+        
+    def __call__(self, index:int):  
+        data = torch.as_tensor(np.array(self.chiplets_for_year[index,:,:], copy=False))
+        data = data.expand(self.n_years,-1,-1)
+        return data
+
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        del state["chiplets_for_year"]
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.chiplets_for_year = None
+
+
+class Normalize(DisplayedTransform):
+    order = 99
+    
+    def __init__(self, mean=None, std=None): 
+        self.mean = mean
+        self.std = std
+
+    def encodes(self, x): 
+        return (x-self.mean) / self.std
+    
+    def decodes(self, x):
+        return x * self.std + self.mean
+
+
+def make_binary(x):
+    return x > 0
+

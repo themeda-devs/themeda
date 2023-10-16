@@ -1,5 +1,12 @@
 import torch
+from polytorch.metrics import categorical_accuracy, smooth_l1, get_predictions_target_for_index, PolyMetric
+import torch.nn.functional as F
+from torch import Tensor
+from attrs import define, field
 
+from .util import get_land_cover_column
+    
+        
 def accuracy(predictions, *targets):
     if not isinstance(predictions, tuple):
         predictions = (predictions,)
@@ -11,3 +18,86 @@ def accuracy(predictions, *targets):
         correct = prediction == target
         
         return correct.float().mean() # hack for only single input
+    
+
+def smooth_l1_rain(predictions, *targets):
+    return smooth_l1(predictions, *targets, data_index=1, feature_axis=2)
+
+
+def smooth_l1_tmax(predictions, *targets):
+    return smooth_l1(predictions, *targets, data_index=2, feature_axis=2)
+
+
+def kl_divergence_proportions_tensors(my_predictions:Tensor, my_targets:Tensor, feature_axis=-1, softmax:bool=True):
+    n_classes = my_predictions.shape[feature_axis]
+    averaging_axes = [-1,-2] # the axes for the pixels
+
+    if softmax:
+        my_predictions = my_predictions.softmax(dim=feature_axis)
+    
+    my_predictions_proportions = my_predictions.mean(dim=averaging_axes)
+    log_proportions = my_predictions_proportions.log()
+
+    # Get the distribution of targets on the chiplet for each timestep
+    batch_size = my_targets.shape[0]
+    timesteps = my_targets.shape[1]
+    reshaped_targets = my_targets.view(batch_size, timesteps, -1).long()  # reshape the pixels into one axis
+    target_counts = torch.zeros(batch_size, timesteps, n_classes, dtype=torch.float32, device=my_targets.device)
+    target_counts.scatter_add_(-1, reshaped_targets, torch.ones_like(reshaped_targets, dtype=torch.float32))
+    my_targets_proportions = target_counts / target_counts.sum(dim=-1, keepdim=True)
+
+    return F.kl_div(log_proportions, my_targets_proportions, reduction='mean')
+
+
+def kl_divergence_proportions(predictions, *targets, data_index=None, feature_axis=-1):
+    my_predictions, my_targets = get_predictions_target_for_index(predictions, *targets, data_index=data_index, feature_axis=feature_axis)
+    return kl_divergence_proportions_tensors(my_predictions, my_targets, feature_axis=feature_axis)
+
+
+@define
+class HierarchicalCategoricalAccuracy(PolyMetric):
+    mapping_tensor: Tensor = field(init=False)
+    n_classes: int = field(init=False)
+    
+    def __attrs_post_init__(self):
+        level0_codes = [int(code) for code in get_land_cover_column("LCNS_lev0")]
+        self.mapping_tensor = torch.tensor(level0_codes, dtype=torch.int64)
+        self.n_classes = self.mapping_tensor.max() + 1
+
+    def map_to_level0(self, predictions, targets):
+        shape = list(predictions.shape)
+        shape[self.feature_axis] = self.n_classes
+
+        self.mapping_tensor = self.mapping_tensor.to(predictions.device)
+
+        prediction_probabilities = predictions.softmax(dim=self.feature_axis)
+        probabilities_level0 = torch.zeros(shape, dtype=prediction_probabilities.dtype, device=predictions.device)
+        probabilities_level0.scatter_add_(self.feature_axis, self.mapping_tensor.view(1,1,-1,1,1).expand( shape[0],shape[1],-1,shape[3], shape[4] ), prediction_probabilities)
+
+        targets_level0 = torch.gather(
+            self.mapping_tensor.view(1,1,1,-1).expand(targets.shape[0],targets.shape[1],targets.shape[3],-1), 
+            -1, 
+            targets.long(),
+        )
+
+        return probabilities_level0, targets_level0
+
+    def calc(self, predictions, targets):
+        probabilities_level0, targets_level0 = self.map_to_level0(predictions, targets)
+        predictions_level0 = torch.argmax(probabilities_level0, dim=self.feature_axis)
+
+        correct = predictions_level0 == targets_level0
+        return correct.float().mean()
+
+
+@define
+class HierarchicalKLDivergence(HierarchicalCategoricalAccuracy):
+    def calc(self, predictions, targets):
+        probabilities_level0, targets_level0 = self.map_to_level0(predictions, targets)
+
+        return kl_divergence_proportions_tensors(
+            probabilities_level0, 
+            targets_level0, 
+            feature_axis=self.feature_axis, 
+            softmax=False,
+        )

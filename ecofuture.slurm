@@ -7,7 +7,9 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 28:00:00
+#SBATCH -t 34:00:00
+
+#SBATCH --mem-per-cpu=8G
 
 # SBATCH -p physical
 #SBATCH -p gpu-a100
@@ -20,21 +22,33 @@
 
 # Load the environment variables
 module purge
-module load python/3.9.6
-# module load cuda/11.6.0
-module load web_proxy/latest
+module load GCCcore/11.3.0
+module load Python/3.10.4
+module load CUDA/11.7.0
 
-# unzip to ssd
-export CHIPLET_DIR=/tmp/chiplets
-export UNZIP_DISABLE_ZIPBOMB_DETECTION=true
-for x in $(find /data/gpfs/projects/punim1932/Data/chiplets/level4/ -mindepth 1 -maxdepth 1 -type f -perm -444) ; do
-    unzip $x -d $CHIPLET_DIR
-done
+export PATH=/home/rturnbull/runting/poetry-py3.9.6/bin:$PATH
 
-# export CHIPLET_DIR=../Data/old/chiplets2000/
+export BASE_DIR=/data/gpfs/projects/punim1932/data_wip
 
-export BATCH=4
-export SMOOTHING=.1
-export MAX_YEARS=15
-export RUN_NAME=eco-b$BATCH-sm$SMOOTHING-y$MAX_YEARS-lr-5
-poetry run poetry run ecofuture train --chiplet-dir $CHIPLET_DIR --validation-subset 1 --max-chiplets 0 --label-smoothing $SMOOTHING --batch-size $BATCH  --run-name $RUN_NAME --output-dir outputs/$RUN_NAME --max-years $MAX_YEARS --learning-rate 0.00001 --wandb # --wandb-entity punim1932
+
+BATCH=1
+LEARNING_RATE=0.001
+KERNEL=15
+HIDDEN=64
+EMBEDDING=16
+
+
+RUN_NAME=themeda-all
+
+poetry run ecofuture train \
+    --input land_cover --input rain --input tmax --input elevation --input land_use \
+    --input fire_scar_early  --input fire_scar_late \
+    --input soil_ece --input soil_clay --input soil_depth \
+    --output land_cover \
+    --validation-subset 1 --batch-size $BATCH \
+    --learning-rate $LEARNING_RATE --temporal-processor-type GRU \
+    --kernel-size $KERNEL --embedding-size $EMBEDDING \
+    --base-dir $BASE_DIR \
+    --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+    --max-years 25 \
+    --wandb --wandb-entity punim1932

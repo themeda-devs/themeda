@@ -19,7 +19,8 @@ classifiers = [
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-torchapp = {git = "https://github.com/rbturnbull/torchapp.git", branch="diffusion"}
+torch = ">=2.0.0, !=2.0.1"
+torchapp = {git = "https://github.com/rbturnbull/torchapp.git", branch="master"}
 python-dateutil = "^2.8.2"
 geojson = "^3.0.1"
 rasterio = "^1.3.6"
@@ -37,6 +38,8 @@ boto3 = "^1.26.161"
 netcdf4 = "^1.6.4"
 tqdm = "^4.65.0"
 pyyaml = "^6.0"
+polytorch = {git = "https://github.com/rbturnbull/polytorch.git", branch="hierarchical"}
+
 
 [tool.poetry.dev-dependencies]
 pytest = "^6.2.5"
@@ -72,6 +75,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 ecofuture = "ecofuture.apps:EcoFuture.main"
+ecofuture-proportion = "ecofuture.apps:EcofutureProportionsApp.main"
 ecofuture_preproc = "ecofuture.preproc.cli:run"
 ecofuture_preproc_spartan = "ecofuture.preproc.spartan:run"
 
