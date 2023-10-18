@@ -539,8 +539,11 @@ class ThemedaModelSimpleConv(nn.Module):
 
 
     def forward(self, *inputs):
-        # Embedding       
+        # Embedding 
+        # All the different data sources are combined here and embedded in the feature space
         x = self.embedding(*inputs)
+
+        # shape = (batch_size, timesteps, features, pixels_y, pixels_x)
 
         if self.hidden_size:
             x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
