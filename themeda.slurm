@@ -27,5 +27,6 @@ module load Python/3.10.4
 module load CUDA/11.7.0
 
 export PATH=/home/rturnbull/runting/poetry-py3.9.6/bin:$PATH
+export THEMEDA_DATA_DIR=/data/gpfs/projects/punim1932/data_wip
 
 bash train.sh
