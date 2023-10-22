@@ -349,6 +349,8 @@ class Themeda(ta.TorchApp):
 
         for data_index, output in enumerate(self.outputs):
             output = str(output)
+            output_datasource = DataSourceName[output.upper()]
+
             if output == "land_cover":
                 metrics += [
                     partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
@@ -357,9 +359,16 @@ class Themeda(ta.TorchApp):
                     HierarchicalKLDivergence(data_index=data_index, feature_axis=feature_axis),
                     # partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
                 ]
-
-            elif output in ["rain", "tmax"]:
+            elif output == "land_use":
+                metrics += [
+                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
+                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
+                ]
+            elif is_data_source_continuous(output_datasource):
                 metrics.append(PolyMetric(name=f"smooth_l1_{output}", feature_axis=feature_axis, data_index=data_index, function=F.smooth_l1_loss))
+            elif output_datasource in [DataSourceName.FIRE_SCAR_EARLY, DataSourceName.FIRE_SCAR_LATE]:
+                print(f"no metric for {output}")
+                continue
             else:
                 raise ValueError(f"No metrics for output {output}")
         
