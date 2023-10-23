@@ -37,8 +37,8 @@ from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaMode
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
-from .util import get_land_cover_colours
 from .loss import ProportionLoss
+from .land_cover import LandCoverData
 
 # MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 # STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -128,10 +128,7 @@ def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformB
 def get_datatype(name:DataSourceName|str) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        colours_dict = get_land_cover_colours()
-        labels = list(colours_dict.keys())
-        colours = list(colours_dict.values())
-        return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+        return LandCoverData()
     elif name == "land_use":
         from themeda_preproc.land_use.labels import get_cmap
 

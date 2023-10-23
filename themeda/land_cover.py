@@ -3,8 +3,11 @@ import torch
 from torch import nn
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
-from .util import get_land_cover_column
 from torch import Tensor
+from polytorch import CategoricalData, CategoricalLossType
+from .util import get_land_cover_colours
+from .util import get_land_cover_column
+
 
 class LandCoverMapper():    
     def __init__(self):
@@ -129,3 +132,21 @@ class LandCoverEmbedding(nn.Module):
     def reset_parameters(self) -> None:
         torch.nn.init.normal_(self.weights)
         torch.nn.init.constant_(self.bias, 0.0)
+
+
+class LandCoverData(CategoricalData):
+    def __init__(self):
+        colours_dict = get_land_cover_colours()
+        labels = list(colours_dict.keys())
+        colours = list(colours_dict.values())
+        return super().__init__(
+            len(labels), 
+            name="land_cover", 
+            loss_type=CategoricalLossType.CROSS_ENTROPY, 
+            labels=labels, 
+            colors=colours
+        )
+
+    def embedding_module(self, embedding_size:int) -> LandCoverEmbedding:
+        return LandCoverEmbedding(embedding_size)
+    
