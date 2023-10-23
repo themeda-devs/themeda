@@ -6,17 +6,17 @@ Themeda
 
 |testing badge| |coverage badge| |docs badge| |black badge| |torchapp badge|
 
-.. |testing badge| image:: https://github.com/unimelbmdap/themeda/actions/workflows/testing.yml/badge.svg
-    :target: https://github.com/unimelbmdap/themeda/actions
+.. |testing badge| image:: https://github.com/themeda-devs/themeda/actions/workflows/testing.yml/badge.svg
+    :target: https://github.com/themeda-devs/themeda/actions
 
-.. |docs badge| image:: https://github.com/unimelbmdap/themeda/actions/workflows/docs.yml/badge.svg
-    :target: https://unimelbmdap.github.io/themeda
+.. |docs badge| image:: https://github.com/themeda-devs/themeda/actions/workflows/docs.yml/badge.svg
+    :target: https://themeda-devs.github.io/themeda
     
 .. |black badge| image:: https://img.shields.io/badge/code%20style-black-000000.svg
     :target: https://github.com/psf/black
     
-.. |coverage badge| image:: https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/unimelbmdap/678d63194968581af7a7c14f890f1676/raw/coverage-badge.json
-    :target: https://unimelbmdap.github.io/themeda/coverage/
+.. |coverage badge| image:: https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/rbturnbull/296c2f5ddd0a272d5a058401c404489e/raw/coverage-badge.json
+    :target: https://themeda-devs.github.io/themeda/coverage/
 
 .. |torchapp badge| image:: https://img.shields.io/badge/MLOpps-torchapp-B1230A.svg
     :target: https://rbturnbull.github.io/torchapp/
