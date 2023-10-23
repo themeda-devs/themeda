@@ -57,9 +57,6 @@ class LandCoverEmbedding(nn.Module):
     def __init__(
         self, 
         embedding_size:int,
-        bias:bool=True,
-        mean:float|None=None,
-        stdev:float|None=None,
         device=None, 
         dtype=None,
         **kwargs,
@@ -69,12 +66,10 @@ class LandCoverEmbedding(nn.Module):
         self.mapper = LandCoverMapper()
 
         self.embedding_size = embedding_size
-        self.mean = mean
-        self.stdev = stdev
 
         factory_kwargs = {'device': device, 'dtype': dtype}
-        self.weight = Parameter(torch.empty((self.n_major_classes, embedding_size,), **factory_kwargs), requires_grad=True)
-        self.bias = Parameter(torch.empty((self.n_major_classes, embedding_size,), **factory_kwargs), requires_grad=True)
+        self.weights = Parameter(torch.empty((self.mapper.n_major_classes, embedding_size,), **factory_kwargs), requires_grad=True)
+        self.bias = Parameter(torch.empty((self.mapper.n_major_classes, embedding_size,), **factory_kwargs), requires_grad=True)
         self.distances = torch.as_tensor([
             0,
             0,
@@ -112,11 +107,15 @@ class LandCoverEmbedding(nn.Module):
             raise NotImplementedError()
         else:
             level0_bias = F.embedding(level0, self.bias)
-            level0_vector = F.embedding(level0, self.vectors)
-            distance = torch.gather(self.distances, 0, input.flatten())
+            level0_weights = F.embedding(level0, self.weights)
+            distance = torch.gather(
+                self.distances.view(1,1,1,-1).expand(input.shape[0],input.shape[1],input.shape[3],-1), 
+                -1, 
+                input.long(),
+            )
 
-        return level0_bias + distance * level0_vector
+        return level0_bias + distance.unsqueeze(-1) * level0_weights
 
     def reset_parameters(self) -> None:
-        torch.nn.init.normal_(self.vectors)
+        torch.nn.init.normal_(self.weights)
         torch.nn.init.constant_(self.bias, 0.0)
