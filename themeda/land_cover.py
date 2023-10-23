@@ -104,7 +104,17 @@ class LandCoverEmbedding(nn.Module):
 
         # If given distribution
         if input.is_floating_point():
-            raise NotImplementedError()
+            level0_bias = level0.permute(0,1,3,4,2) @ self.bias
+
+            # expand weights with codes
+            all_weights = torch.gather(
+                self.weights.T,
+                -1, 
+                self.mapper.mapping_tensor.view(1,-1).expand(self.weights.shape[-1], -1),
+            ).T
+            all_weights = self.distances.unsqueeze(1) *  all_weights
+
+            return level0_bias + input.permute(0,1,3,4,2) @ all_weights
         else:
             level0_bias = F.embedding(level0, self.bias)
             level0_weights = F.embedding(level0, self.weights)
@@ -112,9 +122,9 @@ class LandCoverEmbedding(nn.Module):
                 self.distances.view(1,1,1,-1).expand(input.shape[0],input.shape[1],input.shape[3],-1), 
                 -1, 
                 input.long(),
-            )
+            ).unsqueeze(-1)
 
-        return level0_bias + distance.unsqueeze(-1) * level0_weights
+            return level0_bias + distance * level0_weights
 
     def reset_parameters(self) -> None:
         torch.nn.init.normal_(self.weights)
