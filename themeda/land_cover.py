@@ -1,4 +1,3 @@
-# -*- coding: future_typing -*-
 
 import torch
 from torch import nn
@@ -26,6 +25,8 @@ class LandCoverMapper():
         if data.is_floating_point():
             assert data.shape[2] == self.n_classes
             raise NotImplementedError()
+        
+        assert len(data.shape) == 4
 
         return torch.gather(
             self.mapping_tensor.view(1,1,1,-1).expand(data.shape[0],data.shape[1],data.shape[3],-1), 
