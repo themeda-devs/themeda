@@ -4,7 +4,6 @@ from typing import List
 import torch
 from pathlib import Path
 from torch import nn
-from functools import partial
 from fastai.data.core import DataLoaders
 import torchapp as ta
 from fastcore.foundation import mask2idxs
@@ -24,7 +23,7 @@ from torchapp.util import call_func
 from fastai.data.block import TransformBlock
 
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
-from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice, PolyMetric
+from polytorch.metrics import PolyMetric, CategoricalAccuracy
 
 from themeda_preproc.source import DataSourceName, is_data_source_continuous
 from themeda_preproc.roi import ROIName
@@ -35,13 +34,11 @@ import torch.nn.functional as F
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModel, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
-from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
+from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
 from .loss import ProportionLoss
 from .land_cover import LandCoverData
 
-# MEAN = {'rain': 1193.8077, 'tmax':32.6068}
-# STD = {'rain': 394.8365, 'tmax':1.4878}
 
 
 class Interval(Enum):
@@ -350,16 +347,15 @@ class Themeda(ta.TorchApp):
 
             if output == "land_cover":
                 metrics += [
-                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
-                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalCategoricalAccuracy(data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalKLDivergence(data_index=data_index, feature_axis=feature_axis),
-                    # partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis),
                 ]
             elif output == "land_use":
                 metrics += [
-                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
-                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
                 ]
             elif is_data_source_continuous(output_datasource):
                 metrics.append(PolyMetric(name=f"smooth_l1_{output}", feature_axis=feature_axis, data_index=data_index, function=F.smooth_l1_loss))

@@ -40,7 +40,7 @@ EMBEDDING=16
 
 TEMPORAL=LSTM
 
-RUN_NAME=themeda-all-out
+RUN_NAME=themeda-lcDATA
 
 poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \

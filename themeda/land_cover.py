@@ -105,6 +105,10 @@ class LandCoverEmbedding(nn.Module):
         # Get Major Categories
         level0 = self.mapper(input)
 
+        self.weights = self.weights.to(input.device)
+        self.bias = self.bias.to(input.device)
+        self.distances = self.distances.to(input.device)
+
         # If given distribution
         if input.is_floating_point():
             level0_bias = level0.permute(0,1,3,4,2) @ self.bias
