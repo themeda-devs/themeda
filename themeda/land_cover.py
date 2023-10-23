@@ -9,9 +9,11 @@ from torch import Tensor
 class LandCoverMapper():    
     def __init__(self):
         level0_codes = [int(code) for code in get_land_cover_column("LCNS_lev0")]
+        self.level0_codes = level0_codes
         self.mapping_tensor = torch.tensor(level0_codes, dtype=torch.int64)
-        self.n_classes = self.mapping_tensor.max() + 1
+        self.n_classes = len(level0_codes)
         self.n_major_classes = len(set(level0_codes))
+        
 
     def __call__(self, data:Tensor):
         """ 
@@ -21,13 +23,29 @@ class LandCoverMapper():
 
         If integer data, then this is the index of the LCNS category.
         """
-        # If given distribution
-        if data.is_floating_point():
-            assert data.shape[2] == self.n_classes
-            raise NotImplementedError()
-        
-        assert len(data.shape) == 4
+        feature_axis = 2
 
+        # make sure the mapping tensor is on the same device
+        self.mapping_tensor = self.mapping_tensor.to(data.device)
+
+        # If given distribution, then sum the probabilities for each major category
+        if data.is_floating_point():
+            assert len(data.shape) == 5, f"Expected 5 dimensions, got {len(data.shape)}"
+            assert data.shape[feature_axis] == self.n_classes, f"Expected {self.n_classes} classes, got {data.shape[feature_axis]}"
+            shape = list(data.shape)
+            shape[feature_axis] = self.n_major_classes
+
+            probabilities_level0 = torch.zeros(shape, dtype=data.dtype, device=data.device)
+            probabilities_level0.scatter_add_(
+                feature_axis, 
+                self.mapping_tensor.view(1,1,-1,1,1).expand( shape[0],shape[1],-1,shape[3], shape[4] ), 
+                data,
+            )
+
+            return probabilities_level0
+        
+        # If given integer data, then just get the major category
+        assert len(data.shape) == 4
         return torch.gather(
             self.mapping_tensor.view(1,1,1,-1).expand(data.shape[0],data.shape[1],data.shape[3],-1), 
             -1, 
