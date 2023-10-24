@@ -146,12 +146,13 @@ class LandCoverEmbedding(nn.Module):
 
 
 class LandCoverData(CategoricalData):
-    def __init__(self, emd_loss:bool=False, inter_class_distance:float=8.0):
+    def __init__(self, emd_loss:bool=False, hierarchical_embedding:bool=False, inter_class_distance:float=8.0):
         colours_dict = get_land_cover_colours()
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
         self.mapper = LandCoverMapper()
         self.emd_loss = emd_loss
+        self.hierarchical_embedding = hierarchical_embedding
 
         # Build distance matrix
         # Distance between any class with another of a different major class is zero because the loss
@@ -172,8 +173,10 @@ class LandCoverData(CategoricalData):
             colors=colours
         )
 
-    def embedding_module(self, embedding_size:int) -> LandCoverEmbedding:
-        return LandCoverEmbedding(embedding_size)
+    def embedding_module(self, embedding_size:int) -> nn.Module:
+        if self.hierarchical_embedding:
+            return LandCoverEmbedding(embedding_size)
+        return super().embedding_module(embedding_size)
     
     def calculate_loss(self, prediction, target, feature_axis:int=-1):
         if not self.emd_loss:
