@@ -122,10 +122,10 @@ def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformB
     return TransformBlock(type_tfms=type_tfms)
 
 
-def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embeddding:bool=False) -> PolyData:
+def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        return LandCoverData(emd_loss=emd_loss, hierarchical_embeddding=hierarchical_embeddding)
+        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding)
     elif name == "land_use":
         from themeda_preproc.land_use.labels import get_cmap
 
@@ -189,7 +189,7 @@ class Themeda(ta.TorchApp):
         pad_size:int = 0,
         base_size:int = 160,
         emd_loss:bool=False,
-        hierarchical_embedding:bool=False,
+        hierarchical_embedding:bool=True,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which Themeda uses in training and prediction.
