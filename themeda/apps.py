@@ -178,7 +178,7 @@ class Themeda(ta.TorchApp):
         input:List[DataSourceName]=ta.Param(..., help="The input data types."),
         output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
         roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
-        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="Themeda_PREPROC_BASE_OUTPUT_DIR"),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
         start_year:int=ta.Param(1988, help="The start year."),
         end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
@@ -341,16 +341,36 @@ class Themeda(ta.TorchApp):
     def inference_dataloader(
         self, 
         learner, 
-        base_dir:Path=None, 
+        roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
         max_chiplets:int=None, 
-        pad:int=32,
+        pad_size:int = 32,
         start_year:int=ta.Param(1988, help="The start year."),
-        end_year:int=ta.Param(2020, help="The end year (inclusive)."),
+        end_year:int=ta.Param(2019, help="The end year (inclusive)."),
+        subset:int=ta.Param(None),
     ):
+        
+        base_dir = Path(base_dir)
+        if isinstance(roi, str):
+            roi = ROIName[roi.upper()]
+            
+        table = load_table(
+            roi_name=roi,
+            base_output_dir=base_dir,
+            pad_size_pix=pad_size,
+        )
 
-        dataloader = learner.dls.test_dl(self.inference_chiplets)
-        self.pad = pad
+        if subset:
+            table = table[table['subset_num'] == subset]
 
+        if max_chiplets:
+            table = table.sample(max_chiplets, seed=42)
+
+        indexes = torch.as_tensor(table['index'])
+        dataloader = learner.dls.test_dl(indexes)
+        self.pad_size = pad_size
+
+        breakpoint()
 
         return dataloader
     
