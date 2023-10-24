@@ -319,7 +319,7 @@ class Themeda(ta.TorchApp):
         
     def __call__(
         self, 
-        gpu: bool = Param(True, help="Whether or not to use a GPU for processing if available."), 
+        gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."), 
         **kwargs
     ):
         # Check if CUDA is available
