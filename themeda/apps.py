@@ -317,6 +317,27 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
+    def __call__(
+        self, 
+        gpu: bool = Param(True, help="Whether or not to use a GPU for processing if available."), 
+        **kwargs
+    ):
+        # Check if CUDA is available
+        gpu = gpu and torch.cuda.is_available()
+
+        # Open the exported learner from a pickle file
+        path = call_func(self.pretrained_local_path, **kwargs)
+        learner = self.learner_obj = load_learner(path, cpu=not gpu)
+
+        # Create a dataloader for inference
+        dataloader = call_func(self.inference_dataloader, learner, **kwargs)
+
+        results = learner.get_preds(dl=dataloader, reorder=False, with_decoded=False, act=self.activation(), cbs=self.inference_callbacks())
+
+        # Output results
+        output_results = call_func(self.output_results, results, **kwargs)
+        return output_results if output_results is not None else results
+
     def inference_dataloader(
         self, 
         learner, 
