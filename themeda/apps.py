@@ -179,7 +179,7 @@ class Themeda(ta.TorchApp):
         output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
         roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
         base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="Themeda_PREPROC_BASE_OUTPUT_DIR"),
-        start_year:int=ta.Param(1988, help="The start date."),
+        start_year:int=ta.Param(1988, help="The start year."),
         end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
         max_years:int=None,
@@ -317,16 +317,26 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
-    def inference_dataloader(self, learner, base_dir:Path=None, max_chiplets:int=None, num_workers:int=None, **kwargs):
-        self.inference_chiplets = get_chiplets_list(base_dir, max_chiplets)
-        from .transforms import Chiplet # hack
-        self.inference_chiplets = [Chiplet(subset=2, id="00010460.npz")]# hack
-        dataloader = learner.dls.test_dl(self.inference_chiplets, num_workers=num_workers, **kwargs)
+    def inference_dataloader(
+        self, 
+        learner, 
+        base_dir:Path=None, 
+        max_chiplets:int=None, 
+        pad:int=32,
+        start_year:int=ta.Param(1988, help="The start year."),
+        end_year:int=ta.Param(2020, help="The end year (inclusive)."),
+    ):
+
+        dataloader = learner.dls.test_dl(self.inference_chiplets)
+        self.pad = pad
+
+
         return dataloader
     
     def output_results(
         self,
         results,
+        output_year_count:int=2,
     ):
         for chiplet, item in zip(self.inference_chiplets, results[0][0]):
             
