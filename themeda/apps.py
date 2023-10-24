@@ -241,7 +241,7 @@ class Themeda(ta.TorchApp):
         )
 
         if max_chiplets:
-            table = table.sample(max_chiplets)
+            table = table.sample(max_chiplets, seed=42)
 
         indexes = table['index']
         splitter = IndexSplitter(table['subset_num'] == validation_subset)
