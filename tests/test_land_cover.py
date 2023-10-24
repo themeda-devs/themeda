@@ -1,4 +1,4 @@
-from themeda.land_cover import LandCoverMapper, LandCoverEmbedding
+from themeda.land_cover import LandCoverMapper, LandCoverEmbedding, LandCoverData
 import torch
 from torch.nn import functional as F
 
@@ -109,3 +109,41 @@ def test_land_cover_embedding_one_hot():
         ),
     )
 
+
+def test_land_cover_default_loss():
+    data = LandCoverData()
+    targets = torch.cat([torch.arange(23),torch.arange(23)])
+    targets = targets.view(-1,1,1,1).expand(-1,2,3,5)
+    predictions = F.one_hot(targets).permute(0,1,4,2,3).float()
+
+    loss = data.calculate_loss(predictions, targets, feature_axis=2)
+    assert loss.shape == (46, 2, 3, 5)
+    assert 2.2 <= loss.mean() <= 2.3
+
+    loss = data.calculate_loss(predictions*100, targets, feature_axis=2)
+    assert loss.shape == (46, 2, 3, 5)
+    assert loss.mean() <= 0.1
+
+
+def test_land_cover_hierarchical_loss():
+    data = LandCoverData(hierarchical_loss=True)
+    targets = torch.cat([torch.arange(23),torch.arange(23)])
+    targets = targets.view(-1,1,1,1).expand(-1,2,3,5)
+    predictions = F.one_hot(targets).permute(0,1,4,2,3).float()
+
+    loss = data.calculate_loss(predictions, targets, feature_axis=2)
+    assert loss.shape == (46, 2, 3, 5)
+    assert 2.33 <= loss.mean() <= 2.34
+
+    loss = data.calculate_loss(predictions*100, targets, feature_axis=2)
+    assert loss.shape == (46, 2, 3, 5)
+    assert loss.mean() <= 0.1
+
+    # def get_target(index):
+    #     return torch.tensor([index]).view(-1,1,1,1)
+
+    # def get_prediction(index, value:float=1.0):
+    #     return F.one_hot(torch.tensor([index]).view(-1,1,1,1), num_classes=23).permute(0,1,4,2,3).float() * value
+
+    # breakpoint()
+    # data.calculate_loss(get_prediction(0), get_target(0), feature_axis=2)
