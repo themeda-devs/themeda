@@ -179,6 +179,8 @@ class LandCoverData(CategoricalData):
         if not self.emd_loss:
             return super().calculate_loss(prediction, target, feature_axis=feature_axis)
         
+        self.distance_matrix = self.distance_matrix.to(target.device)
+
         probabilities = F.softmax(prediction, dim=feature_axis)
         distances = torch.index_select(self.distance_matrix, 0, target.flatten()).view(target.shape + (self.distance_matrix.shape[0],))
         loss = (probabilities.permute(0,1,3,4,2) * distances).sum(-1)
