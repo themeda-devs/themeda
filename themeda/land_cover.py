@@ -146,12 +146,12 @@ class LandCoverEmbedding(nn.Module):
 
 
 class LandCoverData(CategoricalData):
-    def __init__(self, hierarchical_loss:bool=False):
+    def __init__(self, emd_loss:bool=False, inter_class_distance:float=8.0):
         colours_dict = get_land_cover_colours()
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
         self.mapper = LandCoverMapper()
-        self.hierarchical_loss = hierarchical_loss
+        self.emd_loss = emd_loss
 
         # Build distance matrix
         # Distance between any class with another of a different major class is zero because the loss
@@ -162,6 +162,8 @@ class LandCoverData(CategoricalData):
             for j in range(len(labels)):
                 if major_class == self.mapper.major_class(j):
                     self.distance_matrix[i,j] = abs(LAND_COVER_INTRA_DISTANCES[i]-LAND_COVER_INTRA_DISTANCES[j])
+                else:
+                    self.distance_matrix[i,j] = inter_class_distance
 
         return super().__init__(
             len(labels), 
@@ -174,30 +176,33 @@ class LandCoverData(CategoricalData):
         return LandCoverEmbedding(embedding_size)
     
     def calculate_loss(self, prediction, target, feature_axis:int=-1):
-        if not self.hierarchical_loss:
+        if not self.emd_loss:
             return super().calculate_loss(prediction, target, feature_axis=feature_axis)
         
         probabilities = F.softmax(prediction, dim=feature_axis)
-        probabilities_level0 = self.mapper(probabilities)
-        probabilities_level0 = permute_feature_axis(probabilities_level0, old_axis=feature_axis, new_axis=1)
-
-        target_level0 = self.mapper(target)
-
-        # Use NLL loss because we have the probabilities not the logits
-        level0_loss = F.nll_loss(
-            torch.log(probabilities_level0), 
-            target_level0.long(),
-            reduction="none", 
-            # ignore_index=0,
-            # label_smoothing=self.label_smoothing,
-        )
-
-        # Earth Mover Loss
-        probability_level0_correct = torch.gather(probabilities_level0, 1, target_level0.unsqueeze(1).long()).squeeze(1)
-
         distances = torch.index_select(self.distance_matrix, 0, target.flatten()).view(target.shape + (self.distance_matrix.shape[0],))
-        earth_mover_loss = (probabilities.permute(0,1,3,4,2) * distances).sum(-1) / probability_level0_correct
-
-        loss = level0_loss + earth_mover_loss
+        loss = (probabilities.permute(0,1,3,4,2) * distances).sum(-1)
 
         return loss
+
+
+        # probabilities_level0 = self.mapper(probabilities)
+        # probabilities_level0 = permute_feature_axis(probabilities_level0, old_axis=feature_axis, new_axis=1)
+
+        # target_level0 = self.mapper(target)
+
+        # # Use NLL loss because we have the probabilities not the logits
+        # level0_loss = F.nll_loss(
+        #     torch.log(probabilities_level0), 
+        #     target_level0.long(),
+        #     reduction="none", 
+        #     # ignore_index=0,
+        #     # label_smoothing=self.label_smoothing,
+        # )
+
+        # # Earth Mover Loss
+        # probability_level0_correct = torch.gather(probabilities_level0, 1, target_level0.unsqueeze(1).long()).squeeze(1)
+
+        # loss = level0_loss + earth_mover_loss
+
+        # return loss

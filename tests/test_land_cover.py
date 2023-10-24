@@ -1,7 +1,7 @@
 from themeda.land_cover import LandCoverMapper, LandCoverEmbedding, LandCoverData
 import torch
 from torch.nn import functional as F
-
+import numpy as np
 
 def test_land_cover_mapper_ints():
     mapper = LandCoverMapper()
@@ -125,25 +125,56 @@ def test_land_cover_default_loss():
     assert loss.mean() <= 0.1
 
 
-def test_land_cover_hierarchical_loss():
-    data = LandCoverData(hierarchical_loss=True)
+def test_land_cover_emd_loss():
+    data = LandCoverData(emd_loss=True)
     targets = torch.cat([torch.arange(23),torch.arange(23)])
     targets = targets.view(-1,1,1,1).expand(-1,2,3,5)
     predictions = F.one_hot(targets).permute(0,1,4,2,3).float()
 
     loss = data.calculate_loss(predictions, targets, feature_axis=2)
     assert loss.shape == (46, 2, 3, 5)
-    assert 2.33 <= loss.mean() <= 2.34
+    assert 6.48 <= loss.mean() <= 6.49
 
     loss = data.calculate_loss(predictions*100, targets, feature_axis=2)
     assert loss.shape == (46, 2, 3, 5)
     assert loss.mean() <= 0.1
 
-    # def get_target(index):
-    #     return torch.tensor([index]).view(-1,1,1,1)
+    def get_target(index):
+        return torch.tensor([index]).view(-1,1,1,1)
 
-    # def get_prediction(index, value:float=1.0):
-    #     return F.one_hot(torch.tensor([index]).view(-1,1,1,1), num_classes=23).permute(0,1,4,2,3).float() * value
+    def get_prediction(index, value:float=1.0):
+        return F.one_hot(torch.tensor([index]).view(-1,1,1,1), num_classes=23).permute(0,1,4,2,3).float() * value
 
-    # breakpoint()
-    # data.calculate_loss(get_prediction(0), get_target(0), feature_axis=2)
+    def assert_loss(prediction, target, result, value:float=1.0):
+        loss = data.calculate_loss(get_prediction(prediction, value=value), get_target(target), feature_axis=2).mean()
+        assert np.allclose(loss, result, atol=0.01)
+
+    for i in range(23):
+        assert_loss(i, i, 0.0, value=100.0)
+    
+    # Check Target 1 (Cultivated closed)
+    assert_loss(0, 1, 7.8474, value=5.0)
+    assert_loss(1, 1, 0.9272, value=5.0)
+    assert_loss(2, 1, 1.7922, value=5.0)
+    assert_loss(3, 1, 2.6572, value=5.0)
+    assert_loss(4, 1, 3.5223, value=5.0)
+    for i in range(5,23):
+        assert_loss(i, 1, 7.8474, value=5.0)
+    
+    # Check Target 2 (Cultivated open 40)
+    assert_loss(0, 2, 7.8357, value=5.0)
+    assert_loss(1, 2, 1.7805, value=5.0)
+    assert_loss(2, 2, 0.9154, value=5.0)
+    assert_loss(3, 2, 1.7805, value=5.0)
+    assert_loss(4, 2, 2.6455, value=5.0)
+    for i in range(5,23):
+        assert_loss(i, 2, 7.8357, value=5.0)
+
+    # Check Target 7 (Woody open 15)
+    assert_loss(5, 7, 2.6455, value=5.0)
+    assert_loss(6, 7, 1.7805, value=5.0)
+    assert_loss(7, 7, 0.9154, value=5.0)
+    assert_loss(8, 7, 1.7805, value=5.0)
+    for i in set(range(9,23))|set(range(0,5)):
+        assert_loss(i, 7, 7.8357, value=5.0)
+
