@@ -54,6 +54,16 @@ def kl_divergence_proportions(predictions, *targets, data_index=None, feature_ax
     return kl_divergence_proportions_tensors(my_predictions, my_targets, feature_axis=feature_axis)
 
 
+class KLDivergenceProportions(PolyMetric):
+    def calc(self, predictions, targets):
+        return kl_divergence_proportions_tensors(
+            predictions,
+            targets, 
+            feature_axis=self.feature_axis,
+            softmax=True,
+        )
+
+
 @define
 class HierarchicalCategoricalAccuracy(PolyMetric):
     mapping_tensor: Tensor = field(init=False)

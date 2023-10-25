@@ -4,7 +4,6 @@ from typing import List,Tuple
 import torch
 from pathlib import Path
 from torch import nn
-from functools import partial
 from fastai.data.core import DataLoaders
 import torchapp as ta
 from fastcore.foundation import mask2idxs
@@ -24,7 +23,7 @@ from torchapp.util import call_func
 from fastai.data.block import TransformBlock
 
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
-from polytorch.metrics import categorical_accuracy, smooth_l1, binary_accuracy, binary_dice, binary_iou, generalized_dice, PolyMetric
+from polytorch.metrics import PolyMetric, CategoricalAccuracy
 
 from themeda_preproc.source import DataSourceName, is_data_source_continuous
 from themeda_preproc.roi import ROIName
@@ -35,14 +34,11 @@ import torch.nn.functional as F
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
 from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
-from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
+from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
-from .util import get_land_cover_colours
 from .loss import ProportionLoss
+from .land_cover import LandCoverData
 
-
-# MEAN = {'rain': 1193.8077, 'tmax':32.6068}
-# STD = {'rain': 394.8365, 'tmax':1.4878}
 
 
 class Interval(Enum):
@@ -126,13 +122,10 @@ def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformB
     return TransformBlock(type_tfms=type_tfms)
 
 
-def get_datatype(name:DataSourceName|str) -> PolyData:
+def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        colours_dict = get_land_cover_colours()
-        labels = list(colours_dict.keys())
-        colours = list(colours_dict.values())
-        return CategoricalData(len(labels), name=name, loss_type=CategoricalLossType.CROSS_ENTROPY, labels=labels, colors=colours)
+        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding)
     elif name == "land_use":
         from themeda_preproc.land_use.labels import get_cmap
 
@@ -186,7 +179,7 @@ class Themeda(ta.TorchApp):
         output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
         roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
         base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="Themeda_PREPROC_BASE_OUTPUT_DIR"),
-        start_year:int=ta.Param(1988, help="The start date."),
+        start_year:int=ta.Param(1988, help="The start year."),
         end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
         max_years:int=None,
@@ -195,6 +188,8 @@ class Themeda(ta.TorchApp):
         # predict_persistance:bool=False,
         pad_size:int = 0,
         base_size:int = 160,
+        emd_loss:bool=False,
+        hierarchical_embedding:bool=True,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which Themeda uses in training and prediction.
@@ -213,8 +208,8 @@ class Themeda(ta.TorchApp):
 
         all_types = self.inputs + self.outputs
 
-        self.input_types = [get_datatype(name) for name in self.inputs]
-        self.output_types = [get_datatype(name) for name in self.outputs]
+        self.input_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.inputs]
+        self.output_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.outputs]
         # self.output_types = self.input_types # hack
         base_dir = Path(base_dir)
         assert base_dir.exists(), f"Base Dir {base_dir} does not exist"
@@ -318,16 +313,47 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
-    def inference_dataloader(self, learner, base_dir:Path=None, max_chiplets:int=None, num_workers:int=None, **kwargs):
-        self.inference_chiplets = get_chiplets_list(base_dir, max_chiplets)
-        from .transforms import Chiplet # hack
-        self.inference_chiplets = [Chiplet(subset=2, id="00010460.npz")]# hack
-        dataloader = learner.dls.test_dl(self.inference_chiplets, num_workers=num_workers, **kwargs)
+    def __call__(
+        self, 
+        gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."), 
+        **kwargs
+    ):
+        # Check if CUDA is available
+        gpu = gpu and torch.cuda.is_available()
+
+        # Open the exported learner from a pickle file
+        path = call_func(self.pretrained_local_path, **kwargs)
+        learner = self.learner_obj = load_learner(path, cpu=not gpu)
+
+        # Create a dataloader for inference
+        dataloader = call_func(self.inference_dataloader, learner, **kwargs)
+
+        results = learner.get_preds(dl=dataloader, reorder=False, with_decoded=False, act=self.activation(), cbs=self.inference_callbacks())
+
+        # Output results
+        output_results = call_func(self.output_results, results, **kwargs)
+        return output_results if output_results is not None else results
+
+    def inference_dataloader(
+        self, 
+        learner, 
+        base_dir:Path=None, 
+        max_chiplets:int=None, 
+        pad:int=32,
+        start_year:int=ta.Param(1988, help="The start year."),
+        end_year:int=ta.Param(2020, help="The end year (inclusive)."),
+    ):
+
+        dataloader = learner.dls.test_dl(self.inference_chiplets)
+        self.pad = pad
+
+
         return dataloader
     
     def output_results(
         self,
         results,
+        output_year_count:int=2,
     ):
         for chiplet, item in zip(self.inference_chiplets, results[0][0]):
             
@@ -350,16 +376,15 @@ class Themeda(ta.TorchApp):
 
             if output == "land_cover":
                 metrics += [
-                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
-                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalCategoricalAccuracy(data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalKLDivergence(data_index=data_index, feature_axis=feature_axis),
-                    # partial(generalized_dice, data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis),
                 ]
             elif output == "land_use":
                 metrics += [
-                    partial(categorical_accuracy, data_index=data_index, feature_axis=feature_axis),
-                    partial(kl_divergence_proportions, data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
                 ]
             elif is_data_source_continuous(output_datasource):
                 metrics.append(PolyMetric(name=f"smooth_l1_{output}", feature_axis=feature_axis, data_index=data_index, function=F.smooth_l1_loss))
