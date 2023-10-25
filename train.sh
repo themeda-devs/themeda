@@ -6,7 +6,8 @@ EMBEDDING=16
 
 TEMPORAL=lstm
 
-RUN_NAME=themeda-demo
+THEMEDA_DATA_DIR=/mnt/ecosense/data_wip/
+RUN_NAME="themeda-demo-attention_resnet"
 
 poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \
@@ -18,4 +19,5 @@ poetry run themeda train \
     --kernel-size $KERNEL --embedding-size $EMBEDDING \
     --base-dir $THEMEDA_DATA_DIR \
     --run-name $RUN_NAME --output-dir outputs/$RUN_NAME \
+    --max-chiplets 1000
     # --wandb --wandb-entity punim1932

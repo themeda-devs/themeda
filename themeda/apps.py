@@ -1,6 +1,6 @@
 # -*- coding: future_typing -*-
 
-from typing import List
+from typing import List,Tuple
 import torch
 from pathlib import Path
 from torch import nn
@@ -33,12 +33,13 @@ from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModel, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel
+from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import smooth_l1_rain, smooth_l1_tmax, kl_divergence_proportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
 from .util import get_land_cover_colours
 from .loss import ProportionLoss
+
 
 # MEAN = {'rain': 1193.8077, 'tmax':32.6068}
 # STD = {'rain': 394.8365, 'tmax':1.4878}
@@ -241,7 +242,7 @@ class Themeda(ta.TorchApp):
         )
 
         if max_chiplets:
-            table = table.sample(max_chiplets)
+            table = table.sample(max_chiplets,seed=42)
 
         indexes = table['index']
         splitter = IndexSplitter(table['subset_num'] == validation_subset)
@@ -283,21 +284,17 @@ class Themeda(ta.TorchApp):
             nn.Module: The created model.
         """
         if persistence:
-            return PersistenceModel(self.input_types)
+            return PersistenceModel(self.input_types, self.output_types)
         
         if simple:
-            return ThemedaModelSimpleConv(
-                kernel_size=kernel_size,
+            return ThemedaModelResUNet(
                 input_types=self.input_types,
                 output_types=self.output_types,
                 embedding_size=embedding_size,
-                hidden_size=hidden_size,
-                temporal_processor_type=temporal_processor_type,
-                num_conv_layers=num_conv_layers,
-                padding_mode=padding_mode,
+                temporal_processor_type=temporal_processor_type
             )
         else:
-            ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModel
+            ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModelResUNet
 
         return ModelClass(
             input_types=self.input_types,
@@ -340,7 +337,7 @@ class Themeda(ta.TorchApp):
                 filename = f"level4.{chiplet.subset}.{chiplet.id}.{timestep}.pkl"
                 print(f"saving to {filename}")
                 torch.save(values, filename)
-
+                
         return results
 
     def metrics(self):
@@ -360,8 +357,8 @@ class Themeda(ta.TorchApp):
 
             elif output in ["rain", "tmax"]:
                 metrics.append(PolyMetric(name=f"smooth_l1_{output}", feature_axis=feature_axis, data_index=data_index, function=F.smooth_l1_loss))
-            else:
-                raise ValueError(f"No metrics for output {output}")
+            # else:
+            #     raise ValueError(f"No metrics for output {output}")
         
         return metrics
 
@@ -380,7 +377,7 @@ class Themeda(ta.TorchApp):
 
         if persistence:
             learner = call_func(self.learner, **kwargs)
-            learner.model = PersistenceModel(self.input_types)
+            learner.model = PersistenceModel(self.input_types, self.output_types)
         else:
             path = call_func(self.pretrained_local_path, **kwargs)
 
