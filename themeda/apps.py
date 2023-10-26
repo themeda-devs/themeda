@@ -38,7 +38,7 @@ from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, Hierarch
 from .plots import wandb_process
 from .loss import ProportionLoss
 from .land_cover import LandCoverData
-
+from .callbacks import WriteResults
 
 
 class Interval(Enum):
@@ -189,7 +189,7 @@ class Themeda(ta.TorchApp):
         pad_size:int = 0,
         base_size:int = 160,
         emd_loss:bool=False,
-        hierarchical_embedding:bool=True,
+        hierarchical_embedding:bool=False,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which Themeda uses in training and prediction.
@@ -317,11 +317,55 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
+    def inference_callbacks(self):
+        return [WriteResults("results.npy")]        
+
+    def inference_dataloader(
+        self, 
+        learner, 
+        roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
+        start_year:int=ta.Param(1988, help="The start year."),
+        end_year:int=ta.Param(2018, help="The end year (inclusive)."),
+        max_chiplets:int=None,
+        max_years:int=None,
+        batch_size:int = ta.Param(default=1, help="The batch size."),
+        pad_size:int = 0,
+        base_size:int = 160,
+        # subset:int=ta.Param(None),
+    ):
+        input = [data_type.name for data_type in learner.model.embedding.input_types]
+        output = [data_type.name for data_type in learner.model.output_types]
+        dataloaders = self.dataloaders(
+            input=input,
+            output=output,
+            roi=roi,
+            base_dir=base_dir,
+            start_year=start_year,
+            end_year=end_year,
+            max_chiplets=max_chiplets,
+            max_years=max_years,
+            batch_size=batch_size,
+            pad_size=pad_size,
+            base_size=base_size,
+        )
+        dataloader = dataloaders.test_dl(dataloaders.items)
+        # dataloader = dataloaders.valid.new(dataloaders.items) # Give this data load all the items, regardless of partition
+        dataloader.pad_size = pad_size
+        dataloader.base_size = base_size
+
+        learner.dl = dataloader
+
+        return dataloader
+
     def __call__(
         self, 
         gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."), 
         **kwargs
     ):
+        # overriding the call method to set with_preds=False
+        # This should be fixed in torchapp so that kwargs to get_preds is set with a method
+
         # Check if CUDA is available
         gpu = gpu and torch.cuda.is_available()
 
@@ -332,63 +376,14 @@ class Themeda(ta.TorchApp):
         # Create a dataloader for inference
         dataloader = call_func(self.inference_dataloader, learner, **kwargs)
 
-        results = learner.get_preds(dl=dataloader, reorder=False, with_decoded=False, act=self.activation(), cbs=self.inference_callbacks())
-
-        # Output results
-        output_results = call_func(self.output_results, results, **kwargs)
-        return output_results if output_results is not None else results
-
-    def inference_dataloader(
-        self, 
-        learner, 
-        roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
-        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
-        max_chiplets:int=None, 
-        pad_size:int = 32,
-        start_year:int=ta.Param(1988, help="The start year."),
-        end_year:int=ta.Param(2019, help="The end year (inclusive)."),
-        subset:int=ta.Param(None),
-    ):
-        
-        base_dir = Path(base_dir)
-        if isinstance(roi, str):
-            roi = ROIName[roi.upper()]
-            
-        table = load_table(
-            roi_name=roi,
-            base_output_dir=base_dir,
-            pad_size_pix=pad_size,
+        results = learner.get_preds(
+            dl=dataloader, 
+            reorder=False, 
+            with_decoded=False, 
+            act=self.activation(), 
+            cbs=self.inference_callbacks(),
+            with_preds=False,
         )
-
-        if subset:
-            table = table[table['subset_num'] == subset]
-
-        if max_chiplets:
-            table = table.sample(max_chiplets, seed=42)
-
-        indexes = torch.as_tensor(table['index'])
-        dataloader = learner.dls.test_dl(indexes)
-        self.pad_size = pad_size
-
-        breakpoint()
-
-        return dataloader
-    
-    def output_results(
-        self,
-        results,
-        output_year_count:int=2,
-    ):
-        for chiplet, item in zip(self.inference_chiplets, results[0][0]):
-            
-            for timestep, values in enumerate(item):
-                predictions = torch.argmax(values, dim=0)
-                # Save in same format as chiplet input?
-                filename = f"level4.{chiplet.subset}.{chiplet.id}.{timestep}.pkl"
-                print(f"saving to {filename}")
-                torch.save(values, filename)
-
-        return results
 
     def metrics(self):
         metrics = []
