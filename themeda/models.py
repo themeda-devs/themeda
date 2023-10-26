@@ -538,7 +538,7 @@ class ThemedaModelSimpleConv(nn.Module):
 
 
 
-    def forward(self, *inputs):
+    def forward(self, *inputs):        
         # Embedding 
         # All the different data sources are combined here and embedded in the feature space
         x = self.embedding(*inputs)
