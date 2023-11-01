@@ -22,8 +22,8 @@ class WriteResults(Callback):
 
     def after_batch(self): 
         land_cover_prediction = self.learn.pred[0]
-        land_cover_prediction_last_year = land_cover_prediction[:,-1]
-        land_cover_probabilities = land_cover_prediction_last_year.softmax(dim=2)
+        land_cover_prediction_final_year = land_cover_prediction[:,-1]
+        land_cover_probabilities = land_cover_prediction_final_year.softmax(dim=2)
         batch_size = len(land_cover_probabilities)
         end_point = self.current_index + batch_size
         self.chiplets[self.current_index:end_point, ...] = np.array(land_cover_probabilities.cpu(), dtype=self.chiplets.dtype)
