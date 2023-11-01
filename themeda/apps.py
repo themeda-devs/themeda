@@ -10,6 +10,7 @@ from fastcore.foundation import mask2idxs
 from fastai.data.block import DataBlock
 from fastai.data.transforms import IndexSplitter 
 from rich.console import Console
+import numpy as np
 console = Console()
 from enum import Enum
 import dateutil.parser
@@ -240,7 +241,7 @@ class Themeda(ta.TorchApp):
             table = table.sample(max_chiplets, seed=42)
 
         indexes = table['index']
-        splitter = IndexSplitter(table['subset_num'] == validation_subset)
+        splitter = IndexSplitter(mask2idxs(table['subset_num'] == validation_subset))
 
         datablock = DataBlock(
             blocks=blocks,
@@ -318,7 +319,9 @@ class Themeda(ta.TorchApp):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
     def inference_callbacks(self):
-        return [WriteResults("results.npy")]        
+        results = Path("../predictions/themeda-all-out.prediction.land_cover.pad0.2019.npy") # hack
+        assert results is not None, f"Please give a path to output the results."
+        return [WriteResults(results)]        
 
     def inference_dataloader(
         self, 
@@ -349,7 +352,9 @@ class Themeda(ta.TorchApp):
             pad_size=pad_size,
             base_size=base_size,
         )
-        dataloader = dataloaders.test_dl(dataloaders.items)
+        total_count = dataloaders.train.n+dataloaders.valid.n
+        items = np.arange(total_count)
+        dataloader = dataloaders.test_dl(items)
         # dataloader = dataloaders.valid.new(dataloaders.items) # Give this data load all the items, regardless of partition
         dataloader.pad_size = pad_size
         dataloader.base_size = base_size
