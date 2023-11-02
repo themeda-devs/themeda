@@ -512,117 +512,256 @@ class ResidualBlock(nn.Module):
         out += residual  # Add the original input (residual) to the output
         return F.relu(out)
 
-# class ThemedaModelSimpleConv(nn.Module):
-#     def __init__(
-#         self,
-#         input_types=List[PolyData],
-#         output_types=List[PolyData],
-#         embedding_size:int=16,
-#         hidden_size:int=0,    
-#         kernel_size:int=1,    
-#         temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
-#         temporal_layers:int=2,
-#         num_filters:int=32,
-#         temporal_size:int=32,
-#         temporal_bias:bool=True,
-#         num_conv_layers:int=1, # New argument to control the number of Conv2d layers
-#         padding_mode:str="zeros",
-        
-#         **kwargs,
-#     ):
-#         super().__init__()
-#         self.embedding = PolyEmbedding(
-#             input_types=input_types,
-#             embedding_size=embedding_size,
-#             feature_axis=2,
-#         )
-#         self.output_types = output_types
-#         out_channels = total_size(output_types)
-
-#         current_size = embedding_size
-
-#         self.hidden_size = hidden_size
-#         if hidden_size:
-            
-#             self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
-#             for i in range(num_conv_layers):
-#                 self.hidden_convs.append(nn.Conv2d(
-#                     current_size,
-#                     num_filters,
-#                     hidden_size,
-#                     kernel_size=kernel_size,
-#                     padding="same",
-#                     padding_mode=padding_mode,
-#                 ))
-#                 current_size = hidden_size
-
-#         # Temporal Processor
-#         rnn_kwargs = dict(
-#             batch_first=True, 
-#             bidirectional=False, 
-#             input_size=current_size,
-#             num_layers=temporal_layers,
-#             hidden_size=temporal_size,
-#             bias = temporal_bias,
-#         )
-#         temporal_processor_type = str(temporal_processor_type).upper()
-#         self.temporal_processor_type = temporal_processor_type
-#         if temporal_processor_type == "NONE":
-#             self.temporal_processor = nn.Identity()
-#         elif temporal_processor_type == "LSTM":
-#             self.temporal_processor = nn.LSTM(**rnn_kwargs)
-#             current_size = temporal_size
-#         elif temporal_processor_type == "GRU":
-#             self.temporal_processor = nn.GRU(**rnn_kwargs)
-#             current_size = temporal_size
-#         else:
-#             raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
-
-
-#         self.final_conv = nn.Conv2d(
-#             current_size,
-#             out_channels,
-#             kernel_size=kernel_size,
-#             padding="same",
-#             padding_mode=padding_mode,
-#         )
-
-
-
-#     def forward(self, *inputs):
-#         # Embedding 
-#         # All the different data sources are combined here and embedded in the feature space
-#         x = self.embedding(*inputs)
-
-#         # shape = (batch_size, timesteps, features, pixels_y, pixels_x)
-        
-
-#         if self.hidden_size:
-#             x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-            
-#             for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
-                
-#                 x = conv(x)
-#                 x = F.relu(x)
-#             x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
-#             # breakpoint()
-
-#         if self.temporal_processor_type != "NONE":
-#             x, batch_size, height, width, timesteps, _ = spatial_combine(x)
-#             x = self.temporal_processor(x)
-#             if isinstance(x, tuple):
-#                 x = x[0]
-#             x = F.relu(x)
-#             x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
-            
-
-#         x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-#         prediction = self.final_conv(x)
-#         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
-
-#         return split_tensor(prediction, self.output_types, feature_axis=2)
-
 class ThemedaModelSimpleConv(nn.Module):
+    def __init__(
+        self,
+        input_types=List[PolyData],
+        output_types=List[PolyData],
+        embedding_size:int=16,
+        hidden_size:int=0,    
+        kernel_size:int=1,    
+        temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
+        temporal_layers:int=2,
+        num_filters:int=32,
+        temporal_size:int=32,
+        temporal_bias:bool=True,
+        num_conv_layers:int=1, # New argument to control the number of Conv2d layers
+        padding_mode:str="zeros",
+        
+        **kwargs,
+    ):
+        super().__init__()
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        current_size = embedding_size
+
+        self.hidden_size = hidden_size
+        if hidden_size:
+            
+            self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
+            for i in range(num_conv_layers):
+                self.hidden_convs.append(nn.Conv2d(
+                    current_size,
+                    num_filters,
+                    hidden_size,
+                    kernel_size=kernel_size,
+                    padding="same",
+                    padding_mode=padding_mode,
+                ))
+                current_size = hidden_size
+
+        # Temporal Processor
+        rnn_kwargs = dict(
+            batch_first=True, 
+            bidirectional=False, 
+            input_size=current_size,
+            num_layers=temporal_layers,
+            hidden_size=temporal_size,
+            bias = temporal_bias,
+        )
+        temporal_processor_type = str(temporal_processor_type).upper()
+        self.temporal_processor_type = temporal_processor_type
+        if temporal_processor_type == "NONE":
+            self.temporal_processor = nn.Identity()
+        elif temporal_processor_type == "LSTM":
+            self.temporal_processor = nn.LSTM(**rnn_kwargs)
+            current_size = temporal_size
+        elif temporal_processor_type == "GRU":
+            self.temporal_processor = nn.GRU(**rnn_kwargs)
+            current_size = temporal_size
+        else:
+            raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
+
+
+        self.final_conv = nn.Conv2d(
+            current_size,
+            out_channels,
+            kernel_size=kernel_size,
+            padding="same",
+            padding_mode=padding_mode,
+        )
+
+
+
+    def forward(self, *inputs):
+        # Embedding 
+        # All the different data sources are combined here and embedded in the feature space
+        x = self.embedding(*inputs)
+
+        # shape = (batch_size, timesteps, features, pixels_y, pixels_x)
+        
+
+        if self.hidden_size:
+            x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+            
+            for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
+                
+                x = conv(x)
+                x = F.relu(x)
+            x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+            # breakpoint()
+
+        if self.temporal_processor_type != "NONE":
+            x, batch_size, height, width, timesteps, _ = spatial_combine(x)
+            x = self.temporal_processor(x)
+            if isinstance(x, tuple):
+                x = x[0]
+            x = F.relu(x)
+            x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
+            
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+        prediction = self.final_conv(x)
+        prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+
+        return split_tensor(prediction, self.output_types, feature_axis=2)
+    
+class AttentionModule(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super(AttentionModule, self).__init__()
+        self.conv1 = nn.Conv2d(in_channels, out_channels, kernel_size, padding=kernel_size//2)
+        self.conv2 = nn.Conv2d(out_channels, out_channels, kernel_size, padding=kernel_size//2)
+        self.softmax = nn.Softmax(dim=-1)
+    
+    def forward(self, x):
+        attn = F.relu(self.conv1(x))
+        attn = self.conv2(attn)
+        attn = self.softmax(attn.view(attn.size(0), -1)).view_as(attn)
+        out = x * attn
+        return out
+
+class ThemedaModelSimpleConvAttention(nn.Module):
+    def __init__(
+        self,
+        input_types=List[PolyData],
+        output_types=List[PolyData],
+        embedding_size:int=16,
+        hidden_size:int=0,    
+        kernel_size:int=1,    
+        temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
+        temporal_layers:int=2,
+        num_filters:int=32,
+        temporal_size:int=32,
+        temporal_bias:bool=True,
+        num_conv_layers:int=1, # New argument to control the number of Conv2d layers
+        padding_mode:str="zeros",
+        
+        **kwargs,
+    ):
+        super().__init__()
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        current_size = embedding_size
+
+        self.hidden_size = hidden_size
+        
+        # Add attention module
+        self.attention_module = AttentionModule(current_size, current_size, kernel_size)
+        self.conv1x1 = nn.Conv2d(32, 16, kernel_size=1)
+        self.adjust_channels = nn.Conv2d(16, 32, kernel_size=1)
+
+
+
+        if hidden_size:
+            
+            self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
+            for i in range(num_conv_layers):
+                self.hidden_convs.append(nn.Conv2d(
+                    current_size,
+                    num_filters,
+                    hidden_size,
+                    kernel_size=kernel_size,
+                    padding="same",
+                    padding_mode=padding_mode,
+                ))
+                current_size = hidden_size
+
+        # Temporal Processor
+        rnn_kwargs = dict(
+            batch_first=True, 
+            bidirectional=False, 
+            input_size=current_size,
+            num_layers=temporal_layers,
+            hidden_size=temporal_size,
+            bias = temporal_bias,
+        )
+        temporal_processor_type = str(temporal_processor_type).upper()
+        self.temporal_processor_type = temporal_processor_type
+        if temporal_processor_type == "NONE":
+            self.temporal_processor = nn.Identity()
+        elif temporal_processor_type == "LSTM":
+            self.temporal_processor = nn.LSTM(**rnn_kwargs)
+            current_size = temporal_size
+        elif temporal_processor_type == "GRU":
+            self.temporal_processor = nn.GRU(**rnn_kwargs)
+            current_size = temporal_size
+        else:
+            raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
+
+
+        self.final_conv = nn.Conv2d(
+            current_size,
+            out_channels,
+            kernel_size=kernel_size,
+            padding="same",
+            padding_mode=padding_mode,
+        )
+
+
+
+    def forward(self, *inputs):
+        # Embedding 
+        # All the different data sources are combined here and embedded in the feature space
+        x = self.embedding(*inputs)
+
+        # shape = (batch_size, timesteps, features, pixels_y, pixels_x)
+        
+
+        if self.hidden_size:
+            x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+            
+            for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
+                
+                x = conv(x)
+                x = F.relu(x)
+            x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+            # breakpoint()
+
+        if self.temporal_processor_type != "NONE":
+            x, batch_size, height, width, timesteps, _ = spatial_combine(x)
+            x = self.temporal_processor(x)
+            if isinstance(x, tuple):
+                x = x[0]
+            x = F.relu(x)
+            x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
+            
+
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
+            
+        # Apply attention before the final convolutional layer
+        x = self.conv1x1(x)
+        x = self.attention_module(x)
+        x = self.adjust_channels(x)
+
+        
+        prediction = self.final_conv(x)
+        prediction = prediction.contiguous().view((batch_size, timesteps, -1) + x.shape[2:])  
+
+        return split_tensor(prediction, self.output_types, feature_axis=2)
+
+class ThemedaModelResConv(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
@@ -725,6 +864,9 @@ class ThemedaModelSimpleConv(nn.Module):
         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 
         return split_tensor(prediction, self.output_types, feature_axis=2)
+    
+    
+
 
 class EnhancedResidualBlock(nn.Module):
     def __init__(self, in_channels, out_channels, kernel_size, padding_mode):

@@ -32,7 +32,7 @@ from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel
+from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel,ThemedaModelSimpleConvAttention
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
@@ -237,7 +237,7 @@ class Themeda(ta.TorchApp):
         )
 
         if max_chiplets:
-            table = table.sample(max_chiplets, seed=42,seed=42)
+            table = table.sample(max_chiplets, seed=42)
 
         indexes = table['index']
         splitter = IndexSplitter(table['subset_num'] == validation_subset)
@@ -282,11 +282,15 @@ class Themeda(ta.TorchApp):
             return PersistenceModel(self.input_types, self.output_types)
         
         if simple:
-            return ThemedaModelResUNet(
+            return ThemedaModelSimpleConv(
+                kernel_size=kernel_size,
                 input_types=self.input_types,
                 output_types=self.output_types,
                 embedding_size=embedding_size,
-                temporal_processor_type=temporal_processor_type
+                hidden_size=hidden_size,
+                temporal_processor_type=temporal_processor_type,
+                num_conv_layers=num_conv_layers,
+                padding_mode=padding_mode,
             )
         else:
             ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModelResUNet
