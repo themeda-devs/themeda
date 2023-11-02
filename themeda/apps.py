@@ -318,8 +318,7 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
-    def inference_callbacks(self):
-        results = Path("../predictions/themeda-all-out.prediction.land_cover.pad0.2019.npy") # hack
+    def inference_callbacks(self, results:Path=None):
         assert results is not None, f"Please give a path to output the results."
         return [WriteResults(results)]        
 
@@ -381,12 +380,14 @@ class Themeda(ta.TorchApp):
         # Create a dataloader for inference
         dataloader = call_func(self.inference_dataloader, learner, **kwargs)
 
+        inference_callbacks = call_func(self.inference_callbacks, **kwargs)
+
         results = learner.get_preds(
             dl=dataloader, 
             reorder=False, 
             with_decoded=False, 
             act=self.activation(), 
-            cbs=self.inference_callbacks(),
+            cbs=inference_callbacks,
             with_preds=False,
         )
 
