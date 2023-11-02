@@ -10,6 +10,7 @@ from fastcore.foundation import mask2idxs
 from fastai.data.block import DataBlock
 from fastai.data.transforms import IndexSplitter 
 from rich.console import Console
+import numpy as np
 console = Console()
 from enum import Enum
 import dateutil.parser
@@ -38,7 +39,7 @@ from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, Hierarch
 from .plots import wandb_process
 from .loss import ProportionLoss
 from .land_cover import LandCoverData
-
+from .callbacks import WriteResults
 
 
 class Interval(Enum):
@@ -178,7 +179,7 @@ class Themeda(ta.TorchApp):
         input:List[DataSourceName]=ta.Param(..., help="The input data types."),
         output:List[DataSourceName]=ta.Param(None, help="The output data types. If not given, then the outputs are the same as the inputs."),
         roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
-        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="Themeda_PREPROC_BASE_OUTPUT_DIR"),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
         start_year:int=ta.Param(1988, help="The start year."),
         end_year:int=ta.Param(2018, help="The end year (inclusive)."),
         max_chiplets:int=None,
@@ -189,7 +190,7 @@ class Themeda(ta.TorchApp):
         pad_size:int = 0,
         base_size:int = 160,
         emd_loss:bool=False,
-        hierarchical_embedding:bool=True,
+        hierarchical_embedding:bool=False,
     ) -> DataLoaders:
         """
         Creates a FastAI DataLoaders object which Themeda uses in training and prediction.
@@ -240,7 +241,7 @@ class Themeda(ta.TorchApp):
             table = table.sample(max_chiplets, seed=42)
 
         indexes = table['index']
-        splitter = IndexSplitter(table['subset_num'] == validation_subset)
+        splitter = IndexSplitter(mask2idxs(table['subset_num'] == validation_subset))
 
         datablock = DataBlock(
             blocks=blocks,
@@ -317,11 +318,59 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
+    def inference_callbacks(self):
+        results = Path("../predictions/themeda-all-out.prediction.land_cover.pad0.2019.npy") # hack
+        assert results is not None, f"Please give a path to output the results."
+        return [WriteResults(results)]        
+
+    def inference_dataloader(
+        self, 
+        learner, 
+        roi:ROIName=ta.Param("savanna", help="The Region of Interest."),
+        base_dir:Path=ta.Param(..., help="The base directory for the preprocessed data.", envvar="THEMEDA_PREPROC_BASE_OUTPUT_DIR"),
+        start_year:int=ta.Param(1988, help="The start year."),
+        end_year:int=ta.Param(2018, help="The end year (inclusive)."),
+        max_chiplets:int=None,
+        max_years:int=None,
+        batch_size:int = ta.Param(default=1, help="The batch size."),
+        pad_size:int = 0,
+        base_size:int = 160,
+        # subset:int=ta.Param(None),
+    ):
+        input = [data_type.name for data_type in learner.model.embedding.input_types]
+        output = [data_type.name for data_type in learner.model.output_types]
+        dataloaders = self.dataloaders(
+            input=input,
+            output=output,
+            roi=roi,
+            base_dir=base_dir,
+            start_year=start_year,
+            end_year=end_year,
+            max_chiplets=max_chiplets,
+            max_years=max_years,
+            batch_size=batch_size,
+            pad_size=pad_size,
+            base_size=base_size,
+        )
+        total_count = dataloaders.train.n+dataloaders.valid.n
+        items = np.arange(total_count)
+        dataloader = dataloaders.test_dl(items)
+        # dataloader = dataloaders.valid.new(dataloaders.items) # Give this data load all the items, regardless of partition
+        dataloader.pad_size = pad_size
+        dataloader.base_size = base_size
+
+        learner.dl = dataloader
+
+        return dataloader
+
     def __call__(
         self, 
         gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."), 
         **kwargs
     ):
+        # overriding the call method to set with_preds=False
+        # This should be fixed in torchapp so that kwargs to get_preds is set with a method
+
         # Check if CUDA is available
         gpu = gpu and torch.cuda.is_available()
 
@@ -332,43 +381,14 @@ class Themeda(ta.TorchApp):
         # Create a dataloader for inference
         dataloader = call_func(self.inference_dataloader, learner, **kwargs)
 
-        results = learner.get_preds(dl=dataloader, reorder=False, with_decoded=False, act=self.activation(), cbs=self.inference_callbacks())
-
-        # Output results
-        output_results = call_func(self.output_results, results, **kwargs)
-        return output_results if output_results is not None else results
-
-    def inference_dataloader(
-        self, 
-        learner, 
-        base_dir:Path=None, 
-        max_chiplets:int=None, 
-        pad:int=32,
-        start_year:int=ta.Param(1988, help="The start year."),
-        end_year:int=ta.Param(2020, help="The end year (inclusive)."),
-    ):
-
-        dataloader = learner.dls.test_dl(self.inference_chiplets)
-        self.pad = pad
-
-
-        return dataloader
-    
-    def output_results(
-        self,
-        results,
-        output_year_count:int=2,
-    ):
-        for chiplet, item in zip(self.inference_chiplets, results[0][0]):
-            
-            for timestep, values in enumerate(item):
-                predictions = torch.argmax(values, dim=0)
-                # Save in same format as chiplet input?
-                filename = f"level4.{chiplet.subset}.{chiplet.id}.{timestep}.pkl"
-                print(f"saving to {filename}")
-                torch.save(values, filename)
-                
-        return results
+        results = learner.get_preds(
+            dl=dataloader, 
+            reorder=False, 
+            with_decoded=False, 
+            act=self.activation(), 
+            cbs=self.inference_callbacks(),
+            with_preds=False,
+        )
 
     def metrics(self):
         metrics = []
