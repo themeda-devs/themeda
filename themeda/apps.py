@@ -318,9 +318,9 @@ class Themeda(ta.TorchApp):
     def loss_func(self):
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
-    def inference_callbacks(self, results:Path=None):
-        assert results is not None, f"Please give a path to output the results."
-        return [WriteResults(results)]        
+    def inference_callbacks(self, probabilities:Path=None, argmax:Path=None):
+        assert (probabilities or argmax), f"Please give a path to output the results as probabilities or argmax."
+        return [WriteResults(probabilities=probabilities, argmax=argmax)]        
 
     def inference_dataloader(
         self, 
