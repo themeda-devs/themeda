@@ -42,6 +42,26 @@ def spatial_combine(x):
 
     return x, batch_size, height, width, timesteps, features
 
+
+class PositionalEncoding(nn.Module):
+    """ Derived from https://pytorch.org/tutorials/beginner/transformer_tutorial.html """
+    def __init__(self, d_model: int, max_len: int = 5000):
+        super().__init__()
+        position = torch.arange(max_len).unsqueeze(1)
+        div_term = torch.exp(torch.arange(0, d_model, 2) * (-math.log(10000.0) / d_model))
+        pe = torch.zeros(max_len, 1, d_model)
+        pe[:, 0, 0::2] = torch.sin(position * div_term)
+        pe[:, 0, 1::2] = torch.cos(position * div_term)
+        self.register_buffer('pe', pe)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Arguments:
+            x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
+        """
+        return x + self.pe[:x.size(1)]
+
+
 # @torch.jit.script
 def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
     """
@@ -375,6 +395,7 @@ class ThemedaModel(nn.Module):
             hidden_size=temporal_size,
             bias = temporal_bias,
         )
+        breakpoint()
         temporal_processor_type = str(temporal_processor_type).upper()
         if temporal_processor_type == "NONE":
             self.temporal_processor = nn.Identity()
@@ -478,6 +499,9 @@ class ThemedaModelSimpleConv(nn.Module):
         temporal_bias:bool=True,
         num_conv_layers:int=1, # New argument to control the number of Conv2d layers
         padding_mode:str="zeros",
+        transformer_heads:int=8,
+        transformer_layers:int=4,
+        transformer_positional_encoding:bool=True,
         **kwargs,
     ):
         super().__init__()
@@ -514,19 +538,34 @@ class ThemedaModelSimpleConv(nn.Module):
             hidden_size=temporal_size,
             bias = temporal_bias,
         )
-        temporal_processor_type = str(temporal_processor_type).upper()
+        if isinstance(temporal_processor_type, str):
+            temporal_processor_type = TemporalProcessorType[temporal_processor_type.upper()]
+
+        self.positional_encoding = PositionalEncoding(current_size) if transformer_positional_encoding else None
+
         self.temporal_processor_type = temporal_processor_type
-        if temporal_processor_type == "NONE":
+        if temporal_processor_type == TemporalProcessorType.NONE:
             self.temporal_processor = nn.Identity()
-        elif temporal_processor_type == "LSTM":
+        elif temporal_processor_type == TemporalProcessorType.LSTM:
             self.temporal_processor = nn.LSTM(**rnn_kwargs)
             current_size = temporal_size
-        elif temporal_processor_type == "GRU":
+        elif temporal_processor_type == TemporalProcessorType.GRU:
             self.temporal_processor = nn.GRU(**rnn_kwargs)
             current_size = temporal_size
+        elif temporal_processor_type == temporal_processor_type.TRANSFORMER:
+            encoder_layer = nn.TransformerEncoderLayer(
+                d_model=current_size, 
+                nhead=transformer_heads,
+                batch_first=True,
+                # bias=temporal_bias, # only allowed in later versions of pytorch
+                dim_feedforward=temporal_size,
+            )
+            self.temporal_processor = nn.TransformerEncoder(
+                encoder_layer=encoder_layer,
+                num_layers=transformer_layers,
+            )
         else:
             raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
-
 
         self.final_conv = nn.Conv2d(
             current_size,
@@ -555,12 +594,26 @@ class ThemedaModelSimpleConv(nn.Module):
             x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
             # breakpoint()
 
-        if self.temporal_processor_type != "NONE":
+        if self.temporal_processor_type != TemporalProcessorType.NONE:
             x, batch_size, height, width, timesteps, _ = spatial_combine(x)
-            x = self.temporal_processor(x)
+
+            if self.temporal_processor_type == TemporalProcessorType.TRANSFORMER:
+                # TODO Do positional encoding
+                if self.positional_encoding:
+                    x = self.positional_encoding(x)
+                
+                mask = nn.Transformer.generate_square_subsequent_mask(
+                    timesteps,
+                    dtype=x.dtype,
+                    device=x.device,
+                )
+                x = self.temporal_processor(x, mask=mask, is_causal=True)
+            else:
+                x = self.temporal_processor(x)
+
             if isinstance(x, tuple):
                 x = x[0]
-            x = F.relu(x)
+            x = F.relu(x) # is this necessary?
             x = x.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
             
 
