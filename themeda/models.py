@@ -571,9 +571,9 @@ class ThemedaModelSimpleConv(nn.Module):
         self.final_conv = nn.Conv2d(
             current_size,
             out_channels,
-            kernel_size=kernel_size,
-            padding="same",
-            padding_mode=padding_mode,
+            kernel_size=1,
+            # padding="same",
+            # padding_mode="zeros",
         )
 
     def forward(self, *inputs):        
