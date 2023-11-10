@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 44:00:00
+#SBATCH -t 42:00:00
 
 #SBATCH --mem-per-cpu=8G
 
@@ -30,7 +30,7 @@ module load cuDNN/8.9.3.28-CUDA-12.2.0
 module load NCCL/2.18.3-CUDA-12.2.0
 
 export PATH=/home/rturnbull/runting/poetry-py3.9.6/bin:$PATH
-export THEMEDA_DATA_DIR=/data/gpfs/projects/punim1932/data_wip
+export THEMEDA_DATA_DIR=/data/gpfs/projects/punim1932/data
 
 BATCH=8
 LEARNING_RATE=0.001
@@ -40,11 +40,12 @@ EMBEDDING=16
 
 TEMPORAL=LSTM
 
-RUN_NAME=themeda-outLC-noFire
+RUN_NAME=themeda-outLC-nov9
 
 poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \
     --input soil_ece --input soil_clay --input soil_depth \
+    --input fire_scar_early  --input fire_scar_late \
     --output land_cover \
     --validation-subset 1 --batch-size $BATCH \
     --learning-rate $LEARNING_RATE --temporal-processor-type $TEMPORAL \
@@ -55,4 +56,3 @@ poetry run themeda train \
     --wandb --wandb-entity punim1932
 
 
-#    --input fire_scar_early  --input fire_scar_late \
