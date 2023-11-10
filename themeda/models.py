@@ -576,8 +576,6 @@ class ThemedaModelSimpleConv(nn.Module):
             padding_mode=padding_mode,
         )
 
-
-
     def forward(self, *inputs):        
         # Embedding 
         # All the different data sources are combined here and embedded in the feature space
