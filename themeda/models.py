@@ -1,5 +1,6 @@
 # broken # -*- coding: future_typing -*-
 
+import math
 from typing import List
 from torch import Tensor
 import torch
@@ -59,7 +60,7 @@ class PositionalEncoding(nn.Module):
         Arguments:
             x: Tensor, shape ``[batch_size, seq_len, embedding_dim]``
         """
-        return x + self.pe[:x.size(1)]
+        return x + self.pe[:x.size(1)].permute(1,0,2)
 
 
 # @torch.jit.script
@@ -604,9 +605,10 @@ class ThemedaModelSimpleConv(nn.Module):
                 
                 mask = nn.Transformer.generate_square_subsequent_mask(
                     timesteps,
-                    dtype=x.dtype,
+                    # dtype=x.dtype, # for later versions of torch
                     device=x.device,
-                )
+                ).type(x.dtype)
+                
                 x = self.temporal_processor(x, mask=mask, is_causal=True)
             else:
                 x = self.temporal_processor(x)

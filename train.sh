@@ -6,7 +6,7 @@ EMBEDDING=16
 
 TEMPORAL=TRANSFORMER
 
-RUN_NAME=themeda-outLC-b$BATCH-max4k-tf-noPE
+RUN_NAME=themeda-outLC-b$BATCH-max4k-tf-PE
 
 poetry run themeda train \
     --input land_cover \

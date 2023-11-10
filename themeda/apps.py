@@ -272,6 +272,9 @@ class Themeda(ta.TorchApp):
         hidden_size:int=0,     # only for simple conv 
         num_conv_layers:int=1, #add multiple conv layers
         padding_mode:str="reflect",
+        transformer_heads:int=8,
+        transformer_layers:int=4,
+        transformer_positional_encoding:bool=True,
     ) -> nn.Module:
         """
         Creates a deep learning model for the Themeda to use.
@@ -292,6 +295,9 @@ class Themeda(ta.TorchApp):
                 temporal_processor_type=temporal_processor_type,
                 num_conv_layers=num_conv_layers,
                 padding_mode=padding_mode,
+                transformer_heads=transformer_heads,
+                transformer_layers=transformer_layers,
+                transformer_positional_encoding=transformer_positional_encoding,
             )
         else:
             ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModel
