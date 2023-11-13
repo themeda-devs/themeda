@@ -32,8 +32,9 @@ from themeda_preproc.chiplet_table import load_table
 from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
-from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModel, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel
+from .enums import TemporalProcessorType
+from .dataloaders import TPlus1Callback, FutureDataLoader
+from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
@@ -263,17 +264,13 @@ class Themeda(ta.TorchApp):
         self,
         persistence:bool = ta.Param(False, help='Whether or not to use a basic persistence model.'),
         embedding_size:int=ta.Param(16, help="The number of embedding dimensions."),
-        encoder_resent:ResNet=ResNet.resnet18.value,
-        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
+        cnn_kernel:int=15,
+        cnn_size:int=64,
+        cnn_layers:int=1,
+        padding_mode:str="reflect",
+        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.LSTM.value, case_sensitive=False),
         temporal_layers:int=2,
         temporal_size:int=32,
-        fastai_unet:bool=False,
-        simple:bool=True,
-        kernel_size:int=1,
-        dropout:float=0.0,   
-        hidden_size:int=0,     # only for simple conv 
-        num_conv_layers:int=1, #add multiple conv layers
-        padding_mode:str="reflect",
         transformer_heads:int=8,
         transformer_layers:int=4,
         transformer_positional_encoding:bool=True,
@@ -287,42 +284,24 @@ class Themeda(ta.TorchApp):
         if persistence:
             return PersistenceModel(self.input_types)
         
-        if simple:
-            return ThemedaModelSimpleConv(
-                kernel_size=kernel_size,
-                input_types=self.input_types,
-                output_types=self.output_types,
-                embedding_size=embedding_size,
-                hidden_size=hidden_size,
-                temporal_processor_type=temporal_processor_type,
-                temporal_layers=temporal_layers,
-                temporal_size=temporal_size,
-                num_conv_layers=num_conv_layers,
-                padding_mode=padding_mode,
-                transformer_heads=transformer_heads,
-                transformer_layers=transformer_layers,
-                transformer_positional_encoding=transformer_positional_encoding,
-            )
-        else:
-            ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModel
-
-        return ModelClass(
+        return ThemedaModel(
             input_types=self.input_types,
             output_types=self.output_types,
             embedding_size=embedding_size,
-            encoder_resent=encoder_resent,
+            cnn_kernel=cnn_kernel,
+            cnn_size=cnn_size,
+            cnn_layers=cnn_layers,
+            padding_mode=padding_mode,
             temporal_processor_type=temporal_processor_type,
-            dropout=dropout,
+            temporal_layers=temporal_layers,
+            temporal_size=temporal_size,
+            transformer_heads=transformer_heads,
+            transformer_layers=transformer_layers,
+            transformer_positional_encoding=transformer_positional_encoding,
         )
     
-    def extra_callbacks(
-        self, 
-        predict_persistance:bool=False, # hack
-    ):
+    def extra_callbacks(self, **kwargs):
         callbacks = [TPlus1Callback()]
-        self.predict_persistance = predict_persistance 
-        if self.predict_persistance:
-            callbacks.append(PredictPersistanceCallback())
         return callbacks
 
     def loss_func(self):

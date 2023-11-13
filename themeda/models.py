@@ -6,7 +6,6 @@ from torch import Tensor
 import torch
 from torch import nn
 import torchvision.models as visionmodels
-from enum import Enum
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 
@@ -14,6 +13,8 @@ from polytorch import PolyEmbedding, PolyData, split_tensor, total_size, Categor
 
 from torchvision.models import resnet18
 from fastai.vision.learner import create_unet_model
+
+from .enums import TemporalProcessorType, DecoderType, ResNet
 
 def time_distributed_combine(x):
     batch_size = x.shape[0]
@@ -63,38 +64,6 @@ class PositionalEncoding(nn.Module):
         return x + self.pe[:x.size(1)].permute(1,0,2)
 
 
-# @torch.jit.script
-def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
-    """
-    Center-crops the encoder_layer to the size of the decoder_layer,
-    so that merging (concatenation) between levels/blocks is possible.
-    This is only necessary for input sizes != 2**n for 'same' padding and always required for 'valid' padding.
-
-    Taken from https://towardsdatascience.com/creating-and-training-a-u-net-model-with-pytorch-for-2d-3d-semantic-segmentation-model-building-6ab09d6a0862
-    """
-    if encoder_layer.shape[2:] != decoder_layer.shape[2:]:
-        ds = encoder_layer.shape[2:]
-        es = decoder_layer.shape[2:]
-        assert ds[0] >= es[0]
-        assert ds[1] >= es[1]
-        if encoder_layer.dim() == 4:  # 2D
-            encoder_layer = encoder_layer[
-                            :,
-                            :,
-                            ((ds[0] - es[0]) // 2):((ds[0] + es[0]) // 2),
-                            ((ds[1] - es[1]) // 2):((ds[1] + es[1]) // 2)
-                            ]
-        elif encoder_layer.dim() == 5:  # 3D
-            assert ds[2] >= es[2]
-            encoder_layer = encoder_layer[
-                            :,
-                            :,
-                            ((ds[0] - es[0]) // 2):((ds[0] + es[0]) // 2),
-                            ((ds[1] - es[1]) // 2):((ds[1] + es[1]) // 2),
-                            ((ds[2] - es[2]) // 2):((ds[2] + es[2]) // 2),
-                            ]
-    return encoder_layer, decoder_layer
-
 
 def Conv(*args, dim:int, **kwargs):
     if dim == 2:
@@ -118,35 +87,6 @@ def ConvTranspose(*args, dim:int, **kwargs):
     if dim == 3:
         return nn.ConvTranspose3d(*args, **kwargs)
     raise ValueError(f"dimension {dim} not supported")  
-
-class ResNet(Enum):
-    resnet18 = "resnet18"
-    resnet34 = "resnet34"
-    resnet50 = "resnet50"
-    resnet101 = "resnet101"
-    resnet152 = "resnet152"
-
-    def __str__(self):
-        return self.value
-
-
-class TemporalProcessorType(Enum):
-    LSTM = "LSTM"
-    GRU = "GRU"
-    TRANSFORMER = "TRANSFORMER"
-    NONE = "NONE"
-
-    def __str__(self):
-        return self.value
-
-
-class DecoderType(Enum):
-    UNET = "UNET"
-    DIFFUSION = "DIFFUSION"
-    NONE = "NONE"
-
-    def __str__(self):
-        return self.value
 
 
 class ResBlock(nn.Module):
@@ -353,7 +293,7 @@ class ResnetSpatialEncoder(nn.Module):
         return x, initial, l1, l2, l3, l4
 
 
-class ThemedaModel(nn.Module):
+class ThemedaModelUNet(nn.Module):
     def __init__(
         self,
         input_types:List[PolyData],
@@ -439,7 +379,7 @@ class ThemedaModel(nn.Module):
         return split_tensor(decoded, self.output_types, feature_axis=2)
 
 
-class ThemedaModelUNet(nn.Module):
+class ThemedaModelUNetFastAI(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
@@ -486,19 +426,19 @@ class ThemedaModelUNet(nn.Module):
         return split_tensor(decoded, self.output_types, feature_axis=2)
 
 
-class ThemedaModelSimpleConv(nn.Module):
+class ThemedaModel(nn.Module):
     def __init__(
         self,
         input_types=List[PolyData],
         output_types=List[PolyData],
         embedding_size:int=16,
-        hidden_size:int=0,    
-        kernel_size:int=1,    
+        cnn_size:int=0,  
+        cnn_layers:int=1,
+        cnn_kernel:int=1,    
         temporal_processor_type:TemporalProcessorType=TemporalProcessorType.NONE,
-        temporal_layers:int=2,
         temporal_size:int=32,
+        temporal_layers:int=2,
         temporal_bias:bool=True,
-        num_conv_layers:int=1, # New argument to control the number of Conv2d layers
         padding_mode:str="zeros",
         transformer_heads:int=8,
         transformer_layers:int=4,
@@ -516,19 +456,21 @@ class ThemedaModelSimpleConv(nn.Module):
 
         current_size = embedding_size
 
-        self.hidden_size = hidden_size
-        if hidden_size:
-            
-            self.hidden_convs = nn.ModuleList() # Create a ModuleList to hold the Conv2d layers
-            for i in range(num_conv_layers):
-                self.hidden_convs.append(nn.Conv2d(
+        self.cnn_size = cnn_size
+        if cnn_size and cnn_layers:
+            self.spatial_processor = nn.Sequential()
+            for _ in range(cnn_layers):
+                self.spatial_processor.append(nn.Conv2d(
                     current_size,
-                    hidden_size,
-                    kernel_size=kernel_size,
+                    cnn_size,
+                    kernel_size=cnn_kernel,
                     padding="same",
                     padding_mode=padding_mode,
                 ))
-                current_size = hidden_size
+                self.spatial_processor.append(nn.ReLU())
+                current_size = cnn_size
+        else:
+            self.spatial_processor = None
 
         # Temporal Processor
         rnn_kwargs = dict(
@@ -572,8 +514,6 @@ class ThemedaModelSimpleConv(nn.Module):
             current_size,
             out_channels,
             kernel_size=1,
-            # padding="same",
-            # padding_mode="zeros",
         )
 
     def forward(self, *inputs):        
@@ -581,23 +521,15 @@ class ThemedaModelSimpleConv(nn.Module):
         # All the different data sources are combined here and embedded in the feature space
         x = self.embedding(*inputs)
 
-        # shape = (batch_size, timesteps, features, pixels_y, pixels_x)
-
-        if self.hidden_size:
+        if self.spatial_processor:
             x, time_distributed, batch_size, timesteps = time_distributed_combine(x)
-            
-            for conv in self.hidden_convs: # Apply all the Conv2d layers in the ModuleList
-                
-                x = conv(x)
-                x = F.relu(x)
+            x = self.spatial_processor(x)
             x = x.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
-            # breakpoint()
 
         if self.temporal_processor_type != TemporalProcessorType.NONE:
             x, batch_size, height, width, timesteps, _ = spatial_combine(x)
 
             if self.temporal_processor_type == TemporalProcessorType.TRANSFORMER:
-                # TODO Do positional encoding
                 if self.positional_encoding:
                     x = self.positional_encoding(x)
                 
@@ -633,7 +565,6 @@ class PersistenceModel(nn.Module):
         super().__init__()
         self.input_types = input_types
         self.true_logit_value = 100.0
-        self.dummy = nn.Linear(10,10)
 
     def forward(self, *inputs):
         results = []
