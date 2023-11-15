@@ -146,7 +146,7 @@ class LandCoverEmbedding(nn.Module):
 
 
 class LandCoverData(CategoricalData):
-    def __init__(self, emd_loss:bool=False, hierarchical_embedding:bool=False, inter_class_distance:float=8.0):
+    def __init__(self, emd_loss:bool=False, hierarchical_embedding:bool=False, inter_class_distance:float=8.0, label_smoothing:float=0.0):
         colours_dict = get_land_cover_colours()
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
@@ -170,7 +170,8 @@ class LandCoverData(CategoricalData):
             len(labels), 
             name="land_cover", 
             labels=labels, 
-            colors=colours
+            colors=colours,
+            label_smoothing=label_smoothing,
         )
 
     def embedding_module(self, embedding_size:int) -> nn.Module:

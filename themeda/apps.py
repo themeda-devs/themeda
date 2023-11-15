@@ -124,10 +124,10 @@ def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformB
     return TransformBlock(type_tfms=type_tfms)
 
 
-def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool) -> PolyData:
+def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool, label_smoothing:float) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding)
+        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing)
     elif name == "land_use":
         from themeda_preproc.land_use.labels import get_cmap
 
@@ -190,6 +190,7 @@ class Themeda(ta.TorchApp):
         # predict_persistance:bool=False,
         pad_size:int = 0,
         base_size:int = 160,
+        label_smoothing:float=0.0,
         emd_loss:bool=False,
         hierarchical_embedding:bool=False,
     ) -> DataLoaders:
@@ -210,8 +211,8 @@ class Themeda(ta.TorchApp):
 
         all_types = self.inputs + self.outputs
 
-        self.input_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.inputs]
-        self.output_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.outputs]
+        self.input_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing) for name in self.inputs]
+        self.output_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing) for name in self.outputs]
         # self.output_types = self.input_types # hack
         base_dir = Path(base_dir)
         assert base_dir.exists(), f"Base Dir {base_dir} does not exist"
