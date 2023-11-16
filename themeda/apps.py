@@ -33,7 +33,7 @@ from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
 from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel,ThemedaModelSimpleConvAttention
+from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModelResUNet, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel,ThemedaModelEResBlock,ResnetSpatialEncoderModel,ThemedaModelSimpleConvAttention,ThemedaModelSimpleConvLayerAttention
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
