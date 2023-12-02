@@ -44,7 +44,7 @@ SMOOTHING=0
 
 TEMPORAL=LSTM
 
-RUN_NAME=b${BATCH}c${KERNEL}x${CNN_SIZE}x${CNN_LAYERS}t${TEMPORAL_SIZE}x${TEMPORAL_LAYERS}sm${SMOOTHING}
+RUN_NAME=unet
 
 poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \
@@ -65,4 +65,5 @@ poetry run themeda train \
     --label-smoothing $SMOOTHING \
     --run-name $RUN_NAME \
     --output-dir outputs/$RUN_NAME \
-    --wandb --wandb-entity punim1932
+    --unet \
+    #--wandb --wandb-entity punim1932

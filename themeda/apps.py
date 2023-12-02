@@ -34,7 +34,7 @@ import torch.nn.functional as F
 
 from .enums import TemporalProcessorType
 from .dataloaders import TPlus1Callback, FutureDataLoader
-from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel
+from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel, ThemedaUNet
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
 from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
 from .plots import wandb_process
@@ -275,6 +275,7 @@ class Themeda(ta.TorchApp):
         transformer_heads:int=8,
         transformer_layers:int=4,
         transformer_positional_encoding:bool=True,
+        unet:bool=False,
     ) -> nn.Module:
         """
         Creates a deep learning model for the Themeda to use.
@@ -284,6 +285,20 @@ class Themeda(ta.TorchApp):
         """
         if persistence:
             return PersistenceModel(self.input_types)
+        
+        if unet:
+            return ThemedaUNet(
+                input_types=self.input_types,
+                output_types=self.output_types,
+                embedding_size=embedding_size,
+                padding_mode = "reflect",
+                growth_factor = 2.0,
+                kernel_size = 3,
+                layers = 4,
+                attn_layers=(3,),
+                position_emb_dim = None,
+                use_affine = False,
+            )
         
         return ThemedaModel(
             input_types=self.input_types,

@@ -16,6 +16,40 @@ from fastai.vision.learner import create_unet_model
 
 from .enums import TemporalProcessorType, DecoderType, ResNet
 
+
+@torch.jit.script
+def autocrop(encoder_layer: torch.Tensor, decoder_layer: torch.Tensor):
+    """
+    Center-crops the encoder_layer to the size of the decoder_layer,
+    so that merging (concatenation) between levels/blocks is possible.
+    This is only necessary for input sizes != 2**n for 'same' padding and always required for 'valid' padding.
+
+    Taken from https://towardsdatascience.com/creating-and-training-a-u-net-model-with-pytorch-for-2d-3d-semantic-segmentation-model-building-6ab09d6a0862
+    """
+    if encoder_layer.shape[2:] != decoder_layer.shape[2:]:
+        ds = encoder_layer.shape[2:]
+        es = decoder_layer.shape[2:]
+        assert ds[0] >= es[0]
+        assert ds[1] >= es[1]
+        if encoder_layer.dim() == 4:  # 2D
+            encoder_layer = encoder_layer[
+                            :,
+                            :,
+                            ((ds[0] - es[0]) // 2):((ds[0] + es[0]) // 2),
+                            ((ds[1] - es[1]) // 2):((ds[1] + es[1]) // 2)
+                            ]
+        elif encoder_layer.dim() == 5:  # 3D
+            assert ds[2] >= es[2]
+            encoder_layer = encoder_layer[
+                            :,
+                            :,
+                            ((ds[0] - es[0]) // 2):((ds[0] + es[0]) // 2),
+                            ((ds[1] - es[1]) // 2):((ds[1] + es[1]) // 2),
+                            ((ds[2] - es[2]) // 2):((ds[2] + es[2]) // 2),
+                            ]
+    return encoder_layer, decoder_layer
+
+
 def time_distributed_combine(x):
     batch_size = x.shape[0]
     timesteps = 0
@@ -65,6 +99,56 @@ class PositionalEncoding(nn.Module):
 
 
 
+class SelfAttention(nn.Module):
+    def __init__(self, dim, in_channels, num_heads:int=1, padding_mode:str="reflect") -> None:
+        """
+        Arguments:
+            dim:
+                the dimension of the image. Value should be 2 or 3
+            in_channels:
+                the number of channel of the image the module is self-attented to
+            num_heads:
+                the number of heads used in the self attntion module
+        """
+        super(SelfAttention, self).__init__()
+        self.dim = dim
+        self.num_heads = num_heads
+
+        self.norm = BatchNorm(in_channels, dim=dim)
+        self.qkv_generator = Conv(in_channels, in_channels * 3, kernel_size=1, stride =1, bias=False, padding_mode=padding_mode, dim=dim)
+        self.output = Conv(in_channels, in_channels, kernel_size=1, padding_mode=padding_mode, dim=dim)
+
+        if dim == 2:
+            self.attn_mask_eq = "bnchw, bncyx -> bnhwyx"
+            self.attn_value_eq = "bnhwyx, bncyx -> bnchw"
+        elif dim == 3:
+            self.attn_mask_eq = "bncdhw, bnczyx -> bndhwzyx"
+            self.attn_value_eq = "bndhwzyx, bnczyx -> bncdhw"
+
+
+    def forward(self, x):
+
+        head_dim = x.shape[1] // self.num_heads
+
+        normalised_x = self.norm(x)
+
+        # compute query key value vectors
+        qkv = self.qkv_generator(normalised_x).view(x.shape[0], self.num_heads, head_dim * 3, *x.shape[2:])
+        query, key, value = qkv.chunk(3, dim=2) # split qkv along the head_dim axis
+
+        # compute attention mask
+        attn_mask = torch.einsum(self.attn_mask_eq, query, key) / math.sqrt(x.shape[1])
+        attn_mask = attn_mask.view(x.shape[0], self.num_heads, *x.shape[2:], -1)
+        attn_mask = torch.softmax(attn_mask, -1)
+        attn_mask = attn_mask.view(x.shape[0], self.num_heads, *x.shape[2:], *x.shape[2:])
+
+        #compute attntion value
+        attn_value = torch.einsum(self.attn_value_eq, attn_mask, value)
+        attn_value = attn_value.view(*x.shape)
+
+        return x + self.output(attn_value)
+
+
 def Conv(*args, dim:int, **kwargs):
     if dim == 2:
         return nn.Conv2d(*args, **kwargs)
@@ -74,6 +158,7 @@ def Conv(*args, dim:int, **kwargs):
     
 
 def BatchNorm(*args, dim:int, **kwargs):
+    return nn.Identity()
     if dim == 2:
         return nn.BatchNorm2d(*args, **kwargs)
     if dim == 3:
@@ -95,35 +180,81 @@ class ResBlock(nn.Module):
         https://towardsdev.com/implement-resnet-with-pytorch-a9fb40a77448 
         https://github.com/pytorch/vision/blob/main/torchvision/models/resnet.py
     """
-    def __init__(self, dim:int, in_channels:int, out_channels:int, downsample:bool, kernel_size:int=3):
+    def __init__(
+        self,
+        dim: int,
+        in_channels: int,
+        out_channels: int,
+        downsample: bool,
+        padding_mode: str = "reflect",
+        kernel_size: int = 3,
+        position_emb_dim: int = None,
+        use_affine: bool = False,
+        use_attn: bool=False
+    ):
         super().__init__()
-        
+        self.padding_mode = padding_mode
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.downsample = downsample
+        self.affine = use_affine
+        self.use_attn = use_attn
+
         # calculate padding so that the output is the same as a kernel size of 1 with zero padding
         # this is required to be calculated becaues padding="same" doesn't work with a stride
-        padding = (kernel_size - 1)//2 
-        
+        padding = (kernel_size - 1)//2
+
+        # position_emb_dim is used as an idicator for incorporating position information or not
+        self.position_emb_dim = position_emb_dim
+        if position_emb_dim is not None:
+            self.noise_func = FeatureWiseAffine(
+                dim=dim,
+                embedding_dim=position_emb_dim,
+                image_channels=out_channels,
+                use_affine=use_affine
+            )
+
         if downsample:
-            self.conv1 = Conv(in_channels, out_channels, kernel_size=kernel_size, stride=2, padding=padding, dim=dim)
+            self.conv1 = Conv(in_channels, out_channels, kernel_size=kernel_size, stride=2, padding=padding, padding_mode=padding_mode, dim=dim)
             self.shortcut = nn.Sequential(
-                Conv(in_channels, out_channels, kernel_size=1, stride=2, dim=dim), 
+                Conv(in_channels, out_channels, kernel_size=1, stride=2, padding_mode=padding_mode, dim=dim), 
                 BatchNorm(out_channels, dim=dim)
             )
         else:
-            self.conv1 = Conv(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding=padding, dim=dim)
+            self.conv1 = Conv(in_channels, out_channels, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode, dim=dim)
             self.shortcut = nn.Sequential()
 
-        self.conv2 = Conv(out_channels, out_channels, kernel_size=kernel_size, stride=1, padding=padding, dim=dim)
+        self.conv2 = Conv(out_channels, out_channels, kernel_size=kernel_size, stride=1, padding=padding, padding_mode=padding_mode, dim=dim)
         self.bn1 = BatchNorm(out_channels, dim=dim)
         self.bn2 = BatchNorm(out_channels, dim=dim)
         self.relu = nn.ReLU(inplace=True)
 
-    def forward(self, x):
-        shortcut = self.shortcut(x)
-        x = self.relu(self.bn1(self.conv1(x)))
-        x = self.relu(self.bn2(self.conv2(x)))
-        x = x + shortcut
-        return self.relu(x)
+        if use_attn:
+            self.attn = SelfAttention(dim=dim, in_channels=out_channels, padding_mode=padding_mode)
 
+    def forward(self, x: Tensor, position_emb: Tensor = None):
+        input = x
+        shortcut = self.shortcut(x)
+        # print('shortcut max', shortcut.max())
+        x = self.relu(self.bn1(self.conv1(x)))
+
+        # print('block 1 max', x.max())
+        # incorporate position information only if position_emb is provided and noise_func exist
+        if position_emb is not None and self.position_emb_dim is not None:
+            x  = self.noise_func (x, position_emb)
+
+        x = self.relu(self.bn2(self.conv2(x)))
+        # print('block 2 max', x.max())
+
+        x = self.relu(x + shortcut)
+
+        if self.use_attn:
+            x = self.attn(x)
+
+        # if not torch.isfinite(x).all():
+        #     breakpoint()
+
+        return x
 
 class UpBlock(nn.Module):
     def __init__(
@@ -131,29 +262,64 @@ class UpBlock(nn.Module):
         dim:int,
         in_channels:int,
         out_channels:int, 
+        padding_mode:str = "reflect",
         resblock_kernel_size:int = 3,
         upsample_kernel_size:int = 2,
+        position_emb_dim: int = None,
+        use_affine: bool = False,
+        use_attn: bool = False
     ):
         super().__init__()
+        self.padding_mode = padding_mode
         self.in_channels = in_channels
         self.out_channels = out_channels
+        self.position_emb_dim = position_emb_dim
+        self.use_affine = use_affine
+        self.use_attn = use_attn
 
-        self.upsample = ConvTranspose(in_channels=self.in_channels, out_channels=self.out_channels, kernel_size=upsample_kernel_size, stride=2, dim=dim)
+        self.upsample = ConvTranspose(
+            in_channels=self.in_channels,
+            out_channels=self.out_channels,
+            kernel_size=upsample_kernel_size,
+            stride=2,
+            dim=dim
+        )
 
-        self.block1 = ResBlock(in_channels=self.out_channels, out_channels=self.out_channels, downsample=False, dim=dim, kernel_size=resblock_kernel_size)
+        self.block1 = ResBlock(
+            dim=dim,
+            padding_mode=padding_mode,
+            in_channels=self.out_channels,
+            out_channels=self.out_channels,
+            downsample=False,
+            kernel_size=resblock_kernel_size,
+            position_emb_dim=position_emb_dim,
+            use_affine=use_affine,
+            use_attn=use_attn
+        )
         # self.block2 = ResBlock(in_channels=self.out_channels, out_channels=self.out_channels, downsample=False, dim=dim, kernel_size=resblock_kernel_size)
 
-    def forward(self, x: Tensor, shortcut: Tensor=None) -> Tensor:
+    def forward(self, x: Tensor, shortcut: Tensor, position_emb: Tensor = None) -> Tensor:
+        if not self.upsample(x).isfinite().all():
+            breakpoint()
         x = self.upsample(x)
+        # crop upsampled tensor in case the size is different from the shortcut connection
+        x, shortcut = autocrop(x, shortcut)
         
-        if shortcut is not None:
-            # crop upsampled tensor in case the size is different from the shortcut connection
-            x, shortcut = autocrop(x, shortcut)
-            x += shortcut
+        if not x.isfinite().all():
+            breakpoint()
+        if not shortcut.isfinite().all():
+            breakpoint()
+            
+        """ should be concatenation, is there a reason for this implementation """
+        x += shortcut
 
-        x = self.block1(x)
+        if not self.block1(x, position_emb).isfinite().all():
+            breakpoint()
+
+        x = self.block1(x, position_emb)
         # x = self.block2(x)
         return x
+
 
 
 class UNetDecoder(nn.Module):
@@ -336,7 +502,6 @@ class ThemedaModelUNet(nn.Module):
             hidden_size=temporal_size,
             bias = temporal_bias,
         )
-        breakpoint()
         temporal_processor_type = str(temporal_processor_type).upper()
         if temporal_processor_type == "NONE":
             self.temporal_processor = nn.Identity()
@@ -608,3 +773,165 @@ class ProportionsLSTMModel(nn.Module):
         out, _ = self.lstm(x)
         out = self.fc(out[:, -1, :])  # Take the last output from the sequence
         return out 
+    
+
+
+class DownBlock(nn.Module):
+    def __init__(
+        self,
+        dim:int,
+        padding_mode: str = "reflect",
+        in_channels:int = 1,
+        downsample:bool = True,
+        growth_factor:float = 2.0,
+        kernel_size:int = 3,
+        position_emb_dim:int = None,
+        use_affine:bool = False,
+        use_attn:bool = False
+    ):
+        super().__init__()
+        self.in_channels = in_channels
+        self.out_channels = in_channels
+        self.position_emb_dim = position_emb_dim
+        self.use_affine = use_affine
+        self.use_attn = use_attn
+        self.padding_mode = padding_mode
+
+        if downsample:
+            self.out_channels = int(growth_factor*self.out_channels)
+
+        self.block1 = ResBlock(
+            dim=dim,
+            padding_mode=padding_mode,
+            in_channels=in_channels,
+            out_channels=self.out_channels,
+            downsample=downsample,
+            kernel_size=kernel_size,
+            position_emb_dim=position_emb_dim,
+            use_affine=use_affine,
+            use_attn=use_attn,
+        )
+        self.block2 = ResBlock(
+            dim=dim,
+            padding_mode=padding_mode,
+            in_channels=self.out_channels,
+            out_channels=self.out_channels,
+            downsample=False,
+            kernel_size=kernel_size,
+            position_emb_dim=position_emb_dim,
+            use_affine=use_affine,
+            use_attn=use_attn,
+        )
+
+    def forward(self, x: Tensor, position_emb: Tensor = None) -> Tensor:
+        x1 = self.block1(x, position_emb)
+        # if not torch.isfinite(x1).all():
+        #     breakpoint()
+        x2 = self.block2(x1, position_emb)
+        # if not torch.isfinite(x2).all():
+        #     breakpoint()
+        return x2
+
+
+class ThemedaUNet(nn.Module):
+    def __init__(
+        self,
+        input_types:List[PolyData],
+        output_types:List[PolyData] = None,
+        embedding_size:int=16,        
+        padding_mode: str = "reflect",
+        # initial_features:int = 64,
+        growth_factor:float = 2.0,
+        kernel_size:int = 3,
+        layers:int = 4,
+        attn_layers=(3,),
+        position_emb_dim:int = None,
+        use_affine:bool = False,
+    ):
+        super().__init__()
+            
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+
+        current_num_features = embedding_size
+        
+        self.downblock_layers = nn.ModuleList()
+        for layer_idx in range(layers):
+            downblock = DownBlock(
+                dim=2, 
+                padding_mode=padding_mode,
+                in_channels=current_num_features,
+                downsample=True,
+                growth_factor=growth_factor, 
+                kernel_size=kernel_size,
+                position_emb_dim=position_emb_dim,
+                use_affine=use_affine,
+                use_attn = (layer_idx in attn_layers),
+            )
+            self.downblock_layers.append(downblock)
+            current_num_features = downblock.out_channels
+
+        self.upblock_layers = nn.ModuleList()
+        for downblock in reversed(self.downblock_layers):
+            upblock = UpBlock(
+                dim=2, 
+                padding_mode=padding_mode,
+                in_channels=downblock.out_channels,
+                out_channels=downblock.in_channels,
+                resblock_kernel_size=kernel_size,
+                position_emb_dim=position_emb_dim,
+                use_affine=use_affine,
+                use_attn=downblock.use_attn
+            )
+            self.upblock_layers.append(upblock)
+            current_num_features = upblock.out_channels
+
+        # self.final_upsample_dims = self.upblock_layers[-1].out_channels//2
+        # self.final_upsample = ConvTranspose(
+        #     in_channels=self.upblock_layers[-1].out_channels, 
+        #     out_channels=self.final_upsample_dims, 
+        #     kernel_size=2, 
+        #     stride=2,
+        #     dim=2,
+        # )
+
+        self.prediction_layer = Conv(
+            padding_mode=padding_mode,
+            in_channels=current_num_features, 
+            out_channels=out_channels, 
+            kernel_size=1,
+            stride=1,
+            dim=2,
+        )
+
+    def forward(self, *inputs):
+        # Embedding
+        embedded = self.embedding(*inputs)
+        
+        # Encoder
+        x, time_distributed, batch_size, timesteps = time_distributed_combine(embedded)
+        encoded_list = []
+        for downblock in self.downblock_layers:
+            encoded_list.append(x)
+            x = downblock(x)
+
+        # Decoder
+        for encoded, upblock in zip(reversed(encoded_list), self.upblock_layers):
+            x = upblock(x, encoded)
+
+            if not x.isfinite().all():
+                breakpoint()
+
+
+        prediction = self.prediction_layer(x)
+        prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
+
+        if not prediction.isfinite().all():
+            breakpoint()
+
+        return split_tensor(prediction, self.output_types, feature_axis=2)
