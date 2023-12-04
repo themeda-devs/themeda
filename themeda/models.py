@@ -99,56 +99,6 @@ class PositionalEncoding(nn.Module):
 
 
 
-class SelfAttention(nn.Module):
-    def __init__(self, dim, in_channels, num_heads:int=1, padding_mode:str="reflect") -> None:
-        """
-        Arguments:
-            dim:
-                the dimension of the image. Value should be 2 or 3
-            in_channels:
-                the number of channel of the image the module is self-attented to
-            num_heads:
-                the number of heads used in the self attntion module
-        """
-        super(SelfAttention, self).__init__()
-        self.dim = dim
-        self.num_heads = num_heads
-
-        self.norm = BatchNorm(in_channels, dim=dim)
-        self.qkv_generator = Conv(in_channels, in_channels * 3, kernel_size=1, stride =1, bias=False, padding_mode=padding_mode, dim=dim)
-        self.output = Conv(in_channels, in_channels, kernel_size=1, padding_mode=padding_mode, dim=dim)
-
-        if dim == 2:
-            self.attn_mask_eq = "bnchw, bncyx -> bnhwyx"
-            self.attn_value_eq = "bnhwyx, bncyx -> bnchw"
-        elif dim == 3:
-            self.attn_mask_eq = "bncdhw, bnczyx -> bndhwzyx"
-            self.attn_value_eq = "bndhwzyx, bnczyx -> bncdhw"
-
-
-    def forward(self, x):
-
-        head_dim = x.shape[1] // self.num_heads
-
-        normalised_x = self.norm(x)
-
-        # compute query key value vectors
-        qkv = self.qkv_generator(normalised_x).view(x.shape[0], self.num_heads, head_dim * 3, *x.shape[2:])
-        query, key, value = qkv.chunk(3, dim=2) # split qkv along the head_dim axis
-
-        # compute attention mask
-        attn_mask = torch.einsum(self.attn_mask_eq, query, key) / math.sqrt(x.shape[1])
-        attn_mask = attn_mask.view(x.shape[0], self.num_heads, *x.shape[2:], -1)
-        attn_mask = torch.softmax(attn_mask, -1)
-        attn_mask = attn_mask.view(x.shape[0], self.num_heads, *x.shape[2:], *x.shape[2:])
-
-        #compute attntion value
-        attn_value = torch.einsum(self.attn_value_eq, attn_mask, value)
-        attn_value = attn_value.view(*x.shape)
-
-        return x + self.output(attn_value)
-
-
 def Conv(*args, dim:int, **kwargs):
     if dim == 2:
         return nn.Conv2d(*args, **kwargs)
@@ -188,31 +138,16 @@ class ResBlock(nn.Module):
         downsample: bool,
         padding_mode: str = "reflect",
         kernel_size: int = 3,
-        position_emb_dim: int = None,
-        use_affine: bool = False,
-        use_attn: bool=False
     ):
         super().__init__()
         self.padding_mode = padding_mode
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.downsample = downsample
-        self.affine = use_affine
-        self.use_attn = use_attn
 
         # calculate padding so that the output is the same as a kernel size of 1 with zero padding
         # this is required to be calculated becaues padding="same" doesn't work with a stride
         padding = (kernel_size - 1)//2
-
-        # position_emb_dim is used as an idicator for incorporating position information or not
-        self.position_emb_dim = position_emb_dim
-        if position_emb_dim is not None:
-            self.noise_func = FeatureWiseAffine(
-                dim=dim,
-                embedding_dim=position_emb_dim,
-                image_channels=out_channels,
-                use_affine=use_affine
-            )
 
         if downsample:
             self.conv1 = Conv(in_channels, out_channels, kernel_size=kernel_size, stride=2, padding=padding, padding_mode=padding_mode, dim=dim)
@@ -229,30 +164,14 @@ class ResBlock(nn.Module):
         self.bn2 = BatchNorm(out_channels, dim=dim)
         self.relu = nn.ReLU(inplace=True)
 
-        if use_attn:
-            self.attn = SelfAttention(dim=dim, in_channels=out_channels, padding_mode=padding_mode)
-
-    def forward(self, x: Tensor, position_emb: Tensor = None):
-        input = x
+    def forward(self, x: Tensor):
         shortcut = self.shortcut(x)
         # print('shortcut max', shortcut.max())
         x = self.relu(self.bn1(self.conv1(x)))
 
-        # print('block 1 max', x.max())
-        # incorporate position information only if position_emb is provided and noise_func exist
-        if position_emb is not None and self.position_emb_dim is not None:
-            x  = self.noise_func (x, position_emb)
-
         x = self.relu(self.bn2(self.conv2(x)))
-        # print('block 2 max', x.max())
 
         x = self.relu(x + shortcut)
-
-        if self.use_attn:
-            x = self.attn(x)
-
-        # if not torch.isfinite(x).all():
-        #     breakpoint()
 
         return x
 
@@ -265,17 +184,11 @@ class UpBlock(nn.Module):
         padding_mode:str = "reflect",
         resblock_kernel_size:int = 3,
         upsample_kernel_size:int = 2,
-        position_emb_dim: int = None,
-        use_affine: bool = False,
-        use_attn: bool = False
     ):
         super().__init__()
         self.padding_mode = padding_mode
         self.in_channels = in_channels
         self.out_channels = out_channels
-        self.position_emb_dim = position_emb_dim
-        self.use_affine = use_affine
-        self.use_attn = use_attn
 
         self.upsample = ConvTranspose(
             in_channels=self.in_channels,
@@ -292,31 +205,18 @@ class UpBlock(nn.Module):
             out_channels=self.out_channels,
             downsample=False,
             kernel_size=resblock_kernel_size,
-            position_emb_dim=position_emb_dim,
-            use_affine=use_affine,
-            use_attn=use_attn
         )
         # self.block2 = ResBlock(in_channels=self.out_channels, out_channels=self.out_channels, downsample=False, dim=dim, kernel_size=resblock_kernel_size)
 
-    def forward(self, x: Tensor, shortcut: Tensor, position_emb: Tensor = None) -> Tensor:
-        if not self.upsample(x).isfinite().all():
-            breakpoint()
+    def forward(self, x: Tensor, shortcut: Tensor) -> Tensor:
         x = self.upsample(x)
         # crop upsampled tensor in case the size is different from the shortcut connection
         x, shortcut = autocrop(x, shortcut)
-        
-        if not x.isfinite().all():
-            breakpoint()
-        if not shortcut.isfinite().all():
-            breakpoint()
-            
+                    
         """ should be concatenation, is there a reason for this implementation """
         x += shortcut
 
-        if not self.block1(x, position_emb).isfinite().all():
-            breakpoint()
-
-        x = self.block1(x, position_emb)
+        x = self.block1(x)
         # x = self.block2(x)
         return x
 
@@ -785,16 +685,10 @@ class DownBlock(nn.Module):
         downsample:bool = True,
         growth_factor:float = 2.0,
         kernel_size:int = 3,
-        position_emb_dim:int = None,
-        use_affine:bool = False,
-        use_attn:bool = False
     ):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = in_channels
-        self.position_emb_dim = position_emb_dim
-        self.use_affine = use_affine
-        self.use_attn = use_attn
         self.padding_mode = padding_mode
 
         if downsample:
@@ -807,9 +701,6 @@ class DownBlock(nn.Module):
             out_channels=self.out_channels,
             downsample=downsample,
             kernel_size=kernel_size,
-            position_emb_dim=position_emb_dim,
-            use_affine=use_affine,
-            use_attn=use_attn,
         )
         self.block2 = ResBlock(
             dim=dim,
@@ -818,18 +709,11 @@ class DownBlock(nn.Module):
             out_channels=self.out_channels,
             downsample=False,
             kernel_size=kernel_size,
-            position_emb_dim=position_emb_dim,
-            use_affine=use_affine,
-            use_attn=use_attn,
         )
 
-    def forward(self, x: Tensor, position_emb: Tensor = None) -> Tensor:
-        x1 = self.block1(x, position_emb)
-        # if not torch.isfinite(x1).all():
-        #     breakpoint()
-        x2 = self.block2(x1, position_emb)
-        # if not torch.isfinite(x2).all():
-        #     breakpoint()
+    def forward(self, x: Tensor) -> Tensor:
+        x1 = self.block1(x)
+        x2 = self.block2(x1)
         return x2
 
 
@@ -840,13 +724,15 @@ class ThemedaUNet(nn.Module):
         output_types:List[PolyData] = None,
         embedding_size:int=16,        
         padding_mode: str = "reflect",
+        temporal_processor_type:TemporalProcessorType|str=TemporalProcessorType.LSTM,
+        temporal_bias:bool=True,
+        temporal_layers:int=1,
+        transformer_heads:int=8,
+        transformer_layers:int=4,
         # initial_features:int = 64,
         growth_factor:float = 2.0,
         kernel_size:int = 3,
         layers:int = 4,
-        attn_layers=(3,),
-        position_emb_dim:int = None,
-        use_affine:bool = False,
     ):
         super().__init__()
             
@@ -869,12 +755,46 @@ class ThemedaUNet(nn.Module):
                 downsample=True,
                 growth_factor=growth_factor, 
                 kernel_size=kernel_size,
-                position_emb_dim=position_emb_dim,
-                use_affine=use_affine,
-                use_attn = (layer_idx in attn_layers),
             )
             self.downblock_layers.append(downblock)
             current_num_features = downblock.out_channels
+
+        if isinstance(temporal_processor_type, str):
+            temporal_processor_type = TemporalProcessorType[temporal_processor_type.upper()]
+
+        self.temporal_processor_type = temporal_processor_type
+        self.temporal_processors = nn.ModuleList()
+        for downblock in self.downblock_layers:
+            rnn_kwargs = dict(
+                batch_first=True, 
+                bidirectional=False, 
+                input_size=downblock.in_channels,
+                hidden_size=downblock.in_channels,
+                num_layers=temporal_layers,
+                bias = temporal_bias,
+            )
+            if temporal_processor_type == TemporalProcessorType.NONE:
+                temporal_processor = nn.Identity()
+            elif temporal_processor_type == TemporalProcessorType.LSTM:
+                temporal_processor = nn.LSTM(**rnn_kwargs)
+            elif temporal_processor_type == TemporalProcessorType.GRU:
+                temporal_processor = nn.GRU(**rnn_kwargs)
+            elif temporal_processor_type == temporal_processor_type.TRANSFORMER:
+                encoder_layer = nn.TransformerEncoderLayer(
+                    d_model=downblock.out_channels, 
+                    nhead=transformer_heads,
+                    batch_first=True,
+                    # bias=temporal_bias, # only allowed in later versions of pytorch
+                    dim_feedforward=downblock.out_channels,
+                )
+                temporal_processor = nn.TransformerEncoder(
+                    encoder_layer=encoder_layer,
+                    num_layers=transformer_layers,
+                )
+            else:
+                raise ValueError(f"Cannot recognize temporal processor type {temporal_processor_type}")
+            
+            self.temporal_processors.append(temporal_processor)
 
         self.upblock_layers = nn.ModuleList()
         for downblock in reversed(self.downblock_layers):
@@ -884,9 +804,6 @@ class ThemedaUNet(nn.Module):
                 in_channels=downblock.out_channels,
                 out_channels=downblock.in_channels,
                 resblock_kernel_size=kernel_size,
-                position_emb_dim=position_emb_dim,
-                use_affine=use_affine,
-                use_attn=downblock.use_attn
             )
             self.upblock_layers.append(upblock)
             current_num_features = upblock.out_channels
@@ -920,18 +837,42 @@ class ThemedaUNet(nn.Module):
             encoded_list.append(x)
             x = downblock(x)
 
+        if self.temporal_processor_type != TemporalProcessorType.NONE:
+            temporal_encoded_list = []
+            for encoded, temporal_processor in zip(encoded_list, self.temporal_processors):
+                encoded_shape = encoded.shape
+                encoded = encoded.contiguous().view( (batch_size, timesteps, -1) + encoded.shape[2:] )  
+                encoded, batch_size, height, width, timesteps, _ = spatial_combine(encoded)
+
+                if self.temporal_processor_type == TemporalProcessorType.TRANSFORMER:
+                    if self.positional_encoding:
+                        encoded = self.positional_encoding(encoded)
+                    
+                    mask = nn.Transformer.generate_square_subsequent_mask(
+                        timesteps,
+                        # dtype=encoded.dtype, # for later versions of torch
+                        device=encoded.device,
+                    ).type(encoded.dtype)
+                    
+                    encoded = temporal_processor(encoded, mask=mask, is_causal=True)
+                else:
+                    encoded = temporal_processor(encoded)
+                if isinstance(encoded, tuple):
+                    encoded = encoded[0]
+                encoded = encoded.contiguous().view( (batch_size, height, width, timesteps, -1) ).permute(0,3,4,1,2)
+                encoded, time_distributed, batch_size, timesteps = time_distributed_combine(encoded)
+
+                assert encoded.shape == encoded_shape
+
+                temporal_encoded_list.append(encoded)
+            del encoded_list
+            encoded_list = temporal_encoded_list
+
         # Decoder
         for encoded, upblock in zip(reversed(encoded_list), self.upblock_layers):
             x = upblock(x, encoded)
 
-            if not x.isfinite().all():
-                breakpoint()
-
-
         prediction = self.prediction_layer(x)
         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
-
-        if not prediction.isfinite().all():
-            breakpoint()
 
         return split_tensor(prediction, self.output_types, feature_axis=2)

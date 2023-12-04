@@ -268,6 +268,7 @@ class Themeda(ta.TorchApp):
         cnn_kernel:int=15,
         cnn_size:int=64,
         cnn_layers:int=1,
+        layers:int=4,
         padding_mode:str="reflect",
         temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.LSTM.value, case_sensitive=False),
         temporal_layers:int=2,
@@ -294,10 +295,12 @@ class Themeda(ta.TorchApp):
                 padding_mode = "reflect",
                 growth_factor = 2.0,
                 kernel_size = 3,
-                layers = 4,
-                attn_layers=(3,),
-                position_emb_dim = None,
-                use_affine = False,
+                layers = layers,
+                temporal_processor_type=temporal_processor_type,
+                temporal_layers=temporal_layers,
+                transformer_heads=transformer_heads,
+                transformer_layers=transformer_layers,
+                # transformer_positional_encoding=transformer_positional_encoding,
             )
         
         return ThemedaModel(

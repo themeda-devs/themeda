@@ -7,7 +7,7 @@
 #SBATCH --cpus-per-task=4
 
 # set your minimum acceptable walltime=days-hours:minutes:seconds
-#SBATCH -t 60:00:00
+#SBATCH -t 80:00:00
 
 #SBATCH --mem-per-cpu=8G
 
@@ -35,16 +35,17 @@ export THEMEDA_DATA_DIR=/data/gpfs/projects/punim1932/data_wip
 BATCH=1
 LEARNING_RATE=0.001
 KERNEL=15
-EMBEDDING=16
+EMBEDDING=64
 CNN_SIZE=64
 CNN_LAYERS=1
 TEMPORAL_SIZE=768
 TEMPORAL_LAYERS=1
 SMOOTHING=0
+LAYERS=5
 
 TEMPORAL=LSTM
 
-RUN_NAME=unet
+RUN_NAME=UNb${BATCH}em${EMBEDDING}sm${SMOOTHING}t${TEMPORAL}l${LAYERS}
 
 poetry run themeda train \
     --input land_cover --input rain --input tmax --input elevation --input land_use \
@@ -59,6 +60,7 @@ poetry run themeda train \
     --cnn-kernel $KERNEL \
     --cnn-size $CNN_SIZE \
     --cnn-layers $CNN_LAYERS \
+    --layers $LAYERS \
     --temporal-processor-type $TEMPORAL \
     --temporal-size $TEMPORAL_SIZE \
     --temporal-layers $TEMPORAL_LAYERS \
@@ -66,4 +68,4 @@ poetry run themeda train \
     --run-name $RUN_NAME \
     --output-dir outputs/$RUN_NAME \
     --unet \
-    #--wandb --wandb-entity punim1932
+    --wandb --wandb-entity punim1932
