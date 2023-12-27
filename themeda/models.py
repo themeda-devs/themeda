@@ -337,23 +337,22 @@ class PersistenceModel(nn.Module):
     def __init__(
         self,
         input_types:List[PolyData],
+        output_types:List[PolyData],
         **kwargs,
     ):
         super().__init__()
-        self.input_types = input_types
-        self.true_logit_value = 100.0
+        # This model can only predict a single categorical class and assumes the first input is that class
+        assert isinstance(input_types[0], CategoricalData)
+        assert isinstance(output_types[0], CategoricalData)
+        assert output_types[0].category_count == input_types[0].category_count
+        self.category_count = output_types[0].category_count
+
+        self.logit_value = torch.nn.Parameter(data=torch.full((1,), 10.0), requires_grad=True)
 
     def forward(self, *inputs):
-        results = []
-        for input, datatype in zip(inputs, self.input_types):
-            if isinstance(datatype, CategoricalData):
-                results.append(
-                    F.one_hot(input.long(), num_classes=datatype.category_count).permute(0,1,4,2,3) * self.true_logit_value
-                )
-            else:
-                results.append(input)
-
-        return tuple(results)
+        input = inputs[0]
+        result = F.one_hot(input.long(), num_classes=self.category_count).permute(0,1,4,2,3) * self.logit_value
+        return result
     
     
 class ProportionsLSTMModel(nn.Module):

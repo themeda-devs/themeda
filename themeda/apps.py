@@ -286,7 +286,7 @@ class Themeda(ta.TorchApp):
             nn.Module: The created model.
         """
         if persistence:
-            return PersistenceModel(self.input_types)
+            return PersistenceModel(self.input_types, self.output_types)
         
         if unet:
             return ThemedaUNet(
@@ -324,7 +324,9 @@ class Themeda(ta.TorchApp):
         callbacks = [TPlus1Callback()]
         return callbacks
 
-    def loss_func(self):
+    def loss_func(self, persistence:bool=False):
+        if persistence:
+            return KLDivergenceProportions(data_index=0, feature_axis=2)
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
     def inference_callbacks(self, probabilities:Path=None, argmax:Path=None):
@@ -399,6 +401,9 @@ class Themeda(ta.TorchApp):
             cbs=inference_callbacks,
             with_preds=False,
         )
+    
+    def monitor(self):
+        return "valid_loss"
 
     def metrics(self):
         metrics = []
