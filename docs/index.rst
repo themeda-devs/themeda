@@ -19,6 +19,7 @@ A model to forecast changes to ecosystems in Australia.
    quickstart
    api
    cli
+   explorer
    credits
 
 Indices and tables
