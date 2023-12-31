@@ -24,7 +24,7 @@ from torchapp.util import call_func
 from fastai.data.block import TransformBlock
 
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
-from polytorch.metrics import PolyMetric, CategoricalAccuracy
+from polytorch.metrics import PolyMetric
 
 from themeda_preproc.source import DataSourceName, is_data_source_continuous
 from themeda_preproc.roi import ROIName
@@ -36,7 +36,7 @@ from .enums import TemporalProcessorType
 from .dataloaders import TPlus1Callback, FutureDataLoader
 from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel, ThemedaUNet
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
-from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
+from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy, CategoricalAccuracy
 from .plots import wandb_process
 from .loss import ProportionLoss
 from .land_cover import LandCoverData
@@ -405,7 +405,7 @@ class Themeda(ta.TorchApp):
     def monitor(self):
         return "valid_loss"
 
-    def metrics(self):
+    def metrics(self, metric_dir: Path = ta.Param(None, help="The location to save data for the metrics."),):
         metrics = []
         feature_axis = 2
 
@@ -415,10 +415,10 @@ class Themeda(ta.TorchApp):
 
             if output == "land_cover":
                 metrics += [
-                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
-                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
                 ]
             elif output == "land_use":
                 metrics += [
@@ -439,6 +439,7 @@ class Themeda(ta.TorchApp):
         self,
         gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."),
         persistence:bool = False,
+        metric_dir:Path = None,
         **kwargs,
     ):
 
@@ -450,7 +451,7 @@ class Themeda(ta.TorchApp):
 
         if persistence:
             learner = call_func(self.learner, **kwargs)
-            learner.model = PersistenceModel(self.input_types)
+            learner.model = PersistenceModel(self.input_types, self.output_types)
         else:
             path = call_func(self.pretrained_local_path, **kwargs)
 
@@ -460,6 +461,7 @@ class Themeda(ta.TorchApp):
                 import dill
                 learner = load_learner(path, cpu=not gpu, pickle_module=dill)
 
+        learner.metrics = call_func(self.metrics, metric_dir=metric_dir, **kwargs)
 
         table = Table(title="Validation", box=SIMPLE)
 

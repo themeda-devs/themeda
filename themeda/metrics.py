@@ -1,8 +1,10 @@
+from pathlib import Path
 import torch
 from polytorch.metrics import categorical_accuracy, smooth_l1, get_predictions_target_for_index, PolyMetric
 import torch.nn.functional as F
 from torch import Tensor
 from attrs import define, field
+from typing import Optional
 
 from .util import get_land_cover_column
     
@@ -46,30 +48,63 @@ def kl_divergence_proportions_tensors(my_predictions:Tensor, my_targets:Tensor, 
     target_counts.scatter_add_(-1, reshaped_targets, torch.ones_like(reshaped_targets, dtype=torch.float32))
     my_targets_proportions = target_counts / target_counts.sum(dim=-1, keepdim=True)
 
-    return F.kl_div(log_proportions, my_targets_proportions, reduction='mean')
+    return F.kl_div(log_proportions, my_targets_proportions, reduction='none')
 
 
-def kl_divergence_proportions(predictions, *targets, data_index=None, feature_axis=-1):
-    my_predictions, my_targets = get_predictions_target_for_index(predictions, *targets, data_index=data_index, feature_axis=feature_axis)
-    return kl_divergence_proportions_tensors(my_predictions, my_targets, feature_axis=feature_axis)
+# def kl_divergence_proportions(predictions, *targets, data_index=None, feature_axis=-1):
+#     my_predictions, my_targets = get_predictions_target_for_index(predictions, *targets, data_index=data_index, feature_axis=feature_axis)
+#     return kl_divergence_proportions_tensors(my_predictions, my_targets, feature_axis=feature_axis)
+
+@define
+class WritableMetric(PolyMetric):
+    output_dir: Optional[Path] = None
+    output_path: Optional[Path] = None
+
+    def __attrs_post_init__(self):
+        if self.output_dir:
+            self.output_dir = Path(self.output_dir)
+            self.output_dir.mkdir(exist_ok=True, parents=True)
+            self.output_path = self.output_dir/f"{self.name}.csv"
+            with self.output_path.open("w") as f:
+                print("year_index", "result", file=f, sep=",")
+
+    def write_result(self, result):
+        if getattr(self, 'output_path', None):
+            with self.output_path.open("a") as f:
+                for sample in range(result.shape[0]):
+                    for year_index in range(result.shape[1]):
+                        print(year_index, result[sample,year_index].float().mean().item(), file=f, sep=",")
 
 
-class KLDivergenceProportions(PolyMetric):
+@define
+class KLDivergenceProportions(WritableMetric):
     def calc(self, predictions, targets):
-        return kl_divergence_proportions_tensors(
+        result = kl_divergence_proportions_tensors(
             predictions,
             targets, 
             feature_axis=self.feature_axis,
             softmax=True,
         )
+        self.write_result(result)
+        return result.mean()
 
 
 @define
-class HierarchicalCategoricalAccuracy(PolyMetric):
+class CategoricalAccuracy(WritableMetric):
+    def calc(self, predictions, targets):
+        predictions = torch.max(predictions, dim=self.feature_axis).indices # should be argmax but there is an issue using MPS
+        result = (predictions == targets).float()
+        self.write_result(result)
+        return result.mean()
+
+
+@define
+class HierarchicalCategoricalAccuracy(WritableMetric):
     mapping_tensor: Tensor = field(init=False)
     n_classes: int = field(init=False)
     
     def __attrs_post_init__(self):
+        super().__attrs_post_init__()
         level0_codes = [int(code) for code in get_land_cover_column("LCNS_lev0")]
         self.mapping_tensor = torch.tensor(level0_codes, dtype=torch.int64)
         self.n_classes = self.mapping_tensor.max() + 1
@@ -97,6 +132,7 @@ class HierarchicalCategoricalAccuracy(PolyMetric):
         predictions_level0 = torch.argmax(probabilities_level0, dim=self.feature_axis)
 
         correct = predictions_level0 == targets_level0
+        self.write_result(correct)
         return correct.float().mean()
 
 
@@ -105,9 +141,12 @@ class HierarchicalKLDivergence(HierarchicalCategoricalAccuracy):
     def calc(self, predictions, targets):
         probabilities_level0, targets_level0 = self.map_to_level0(predictions, targets)
 
-        return kl_divergence_proportions_tensors(
+        result = kl_divergence_proportions_tensors(
             probabilities_level0, 
             targets_level0, 
             feature_axis=self.feature_axis, 
             softmax=False,
         )
+        self.write_result(result)
+        return result.mean()
+
