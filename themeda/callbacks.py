@@ -6,16 +6,17 @@ class WriteResults(Callback):
     def __init__(self, probabilities:Path, argmax:Path):
         self.probabilities = probabilities
         self.argmax = argmax
+        self.base_size = None
 
         assert self.probabilities or self.argmax
 
     def before_epoch(self):
-        base_size = self.learn.dl.base_size
+        self.base_size = self.learn.dl.base_size
 
         n_items = self.learn.dl.n
         n_classes = self.model.output_types[0].category_count
         if self.probabilities:
-            shape = (n_items,n_classes,base_size,base_size)
+            shape = (n_items,n_classes,self.base_size,self.base_size)
             self.probabilities_chiplets = np.memmap(
                 filename=self.probabilities,
                 dtype=np.float16,
@@ -24,7 +25,7 @@ class WriteResults(Callback):
             )
         
         if self.argmax:
-            shape = (n_items,base_size,base_size)
+            shape = (n_items,self.base_size,self.base_size)
             self.argmax_chiplets = np.memmap(
                 filename=self.argmax,
                 dtype=np.uint8,
@@ -36,10 +37,12 @@ class WriteResults(Callback):
     def after_batch(self): 
         pad_size = self.learn.dl.pad_size
         land_cover_prediction = self.learn.pred[0]
-        land_cover_prediction_final_year = land_cover_prediction[:,-1,:,pad_size:-pad_size,pad_size:-pad_size]
+        land_cover_prediction_final_year = land_cover_prediction[:,-1,:,pad_size:land_cover_prediction.shape[3]-pad_size,pad_size:land_cover_prediction.shape[4]-pad_size]
         # after indexing in to the final year, the feature axis should 1 instead of 2
         feature_axis = 1
         assert land_cover_prediction_final_year.shape[feature_axis] == 23
+        assert land_cover_prediction_final_year.shape[2] == self.base_size
+        assert land_cover_prediction_final_year.shape[3] == self.base_size
         land_cover_probabilities = land_cover_prediction_final_year.softmax(dim=feature_axis)
         assert len(land_cover_probabilities.shape) == 4
         batch_size = len(land_cover_probabilities)
