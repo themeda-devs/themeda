@@ -24,5 +24,3 @@ def get_land_cover_colours() -> Dict[str,str]:
     colours = get_land_cover_column("LCNS_HexCol")
     return {label: colour for label, colour in zip(labels, colours)}
 
-
-LEVEL4_COLOURS = get_land_cover_colours()

@@ -146,7 +146,7 @@ class LandCoverEmbedding(nn.Module):
 
 
 class LandCoverData(CategoricalData):
-    def __init__(self, emd_loss:bool=False, hierarchical_embedding:bool=False, inter_class_distance:float=8.0):
+    def __init__(self, emd_loss:bool=False, hierarchical_embedding:bool=False, inter_class_distance:float=8.0, label_smoothing:float=0.0):
         colours_dict = get_land_cover_colours()
         labels = list(colours_dict.keys())
         colours = list(colours_dict.values())
@@ -170,7 +170,8 @@ class LandCoverData(CategoricalData):
             len(labels), 
             name="land_cover", 
             labels=labels, 
-            colors=colours
+            colors=colours,
+            label_smoothing=label_smoothing,
         )
 
     def embedding_module(self, embedding_size:int) -> nn.Module:
@@ -179,7 +180,7 @@ class LandCoverData(CategoricalData):
         return super().embedding_module(embedding_size)
     
     def calculate_loss(self, prediction, target, feature_axis:int=-1):
-        if not self.emd_loss:
+        if not getattr(self, "emd_loss", False):
             return super().calculate_loss(prediction, target, feature_axis=feature_axis)
         
         self.distance_matrix = self.distance_matrix.to(target.device)

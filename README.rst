@@ -25,7 +25,9 @@ Themeda
 
 .. start-quickstart
 
-A model to forecast changes to ecosystems in Australia.
+A model to forecast changes to ecosystems in Australia. 
+
+For more information, see the preprint here: https://ssrn.com/abstract=4681094
 
 Installation
 ==================================
@@ -60,17 +62,17 @@ Credits
 
 .. start-credits
 
-- Rebecca Runting
-- Attila Balogh
-- Jessie Wells
-- Steven Myburgh
 - Robert Turnbull
-- Mel Mistica
+- Damien Mannion
+- Jessie Wells
 - Kabir Manandhar Shrestha
-- Usha Nattala
-- Jon Garber
+- Attila Balogh
+- Rebecca Runting
 
-Created using torchapp (https://github.com/rbturnbull/torchapp).
+If you use Themeda, please cite the preprint:
+
+    Turnbull, Robert and Mannion, Damien and Wells, Jessie and Manandhar Shrestha, Kabir and Balogh, Attila and Runting, Rebecca, Themeda: Predicting land cover change using deep learning (January 1, 2024). Available at SSRN: https://ssrn.com/abstract=4681094
 
 .. end-credits
+
 

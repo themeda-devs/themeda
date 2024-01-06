@@ -13,8 +13,10 @@ import torch.nn.functional as F
 
 from polytorch.plots import format_fig
 
-from .util import LEVEL4_COLOURS
+from .util import get_land_cover_colours
 from .metrics import kl_divergence_proportions_tensors
+
+LAND_COVER_COLOURS = get_land_cover_colours()
 
 def plotly_discrete_colorscale(colors):
     """
@@ -36,9 +38,9 @@ def plotly_discrete_colorscale(colors):
     return discrete_colorscale
 
 
-def heatmap_level4(array, showscale=True):
-    color_scale = plotly_discrete_colorscale(list(LEVEL4_COLOURS.values()))
-    labels = list(LEVEL4_COLOURS.keys())
+def heatmap_land_cover(array, showscale=True):
+    color_scale = plotly_discrete_colorscale(list(LAND_COVER_COLOURS.values()))
+    labels = list(LAND_COVER_COLOURS.keys())
     labels = [f"{i}: {label}" for i, label in enumerate(labels)]
     tickvals = np.arange(len(labels))
     heatmap = go.Heatmap(
@@ -52,8 +54,8 @@ def heatmap_level4(array, showscale=True):
     return heatmap
 
 
-def barchart_level4(array, soft:bool=False):
-    colours = LEVEL4_COLOURS
+def barchart_land_cover(array, soft:bool=False):
+    colours = LAND_COVER_COLOURS
     if soft:
         counts = array.softmax(dim=0).mean(dim=[1,2])
     else:
@@ -67,7 +69,7 @@ def barchart_level4(array, soft:bool=False):
     )
 
 
-def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
+def plot_land_cover_comparison(input, ground_truth, prediction, show:bool=False):
     prediction_argmax = torch.argmax(prediction, axis=0)
     persistence_accuracy = (input == ground_truth).float().mean()
     prediction_accuracy = (prediction_argmax == ground_truth).float().mean()
@@ -104,13 +106,17 @@ def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
     heatmap_row = 1
     barchart_row = heatmap_row + 1
 
-    fig.add_trace(heatmap_level4(array=input, showscale=True), row=heatmap_row, col=1)
-    fig.add_trace(heatmap_level4(array=ground_truth, showscale=False), row=heatmap_row, col=2)
-    fig.add_trace(heatmap_level4(array=prediction_argmax, showscale=False), row=heatmap_row, col=3)
+    input = input.cpu()
+    ground_truth = ground_truth.cpu()
+    prediction = prediction.float().cpu()
 
-    fig.add_trace(barchart_level4(array=input), row=barchart_row, col=1)
-    fig.add_trace(barchart_level4(array=ground_truth), row=barchart_row, col=2)
-    fig.add_trace(barchart_level4(array=prediction, soft=True), row=barchart_row, col=3)
+    fig.add_trace(heatmap_land_cover(array=input, showscale=True), row=heatmap_row, col=1)
+    fig.add_trace(heatmap_land_cover(array=ground_truth, showscale=False), row=heatmap_row, col=2)
+    fig.add_trace(heatmap_land_cover(array=prediction_argmax, showscale=False), row=heatmap_row, col=3)
+
+    fig.add_trace(barchart_land_cover(array=input), row=barchart_row, col=1)
+    fig.add_trace(barchart_land_cover(array=ground_truth), row=barchart_row, col=2)
+    fig.add_trace(barchart_land_cover(array=prediction, soft=True), row=barchart_row, col=3)
 
     format_fig(fig)
     fig.update_layout(width=1200, height=600)
@@ -121,8 +127,8 @@ def plot_level4_comparison(input, ground_truth, prediction, show:bool=False):
     return fig
 
 
-def plot_level4(array, show:bool=False, title=""):
-    heatmap = heatmap_level4(array=array)
+def plot_land_cover(array, show:bool=False, title=""):
+    heatmap = heatmap_land_cover(array=array)
     fig = go.Figure(data=[heatmap])
     format_fig(fig)
 
@@ -135,12 +141,12 @@ def plot_level4(array, show:bool=False, title=""):
     return fig
 
 
-def plot_level4_chiplet(chiplet:Path|str, **kwargs):
+def plot_land_cover_chiplet(chiplet:Path|str, **kwargs):
     chiplet = Path(chiplet)
     if not chiplet.exists():
         raise FileNotFoundError(f"Cannot find chiplet {chiplet}")
     data = np.load(chiplet)
-    return plot_level4(data["data"], **kwargs)
+    return plot_land_cover(data["data"], **kwargs)
 
 
 def plot_chiplet_location(chiplet:Path|str, projection_scale:int=10):
@@ -185,13 +191,13 @@ def wandb_process(x, y, samples, outs, preds):
     wandb_log_dir.mkdir(parents=True, exist_ok=True)
 
     for sample_input, prediction in zip(samples, outs):
-        image_filename = str(wandb_log_dir/f"level4-{index}.png")
+        image_filename = str(wandb_log_dir/f"land_cover-{index}.png")
         timestep = -1
         input = sample_input[0][timestep]
         prediction = prediction[0][timestep]
         ground_truth = sample_input[3][timestep]
 
-        plot_level4_comparison(input, ground_truth, prediction ).write_image(image_filename)
+        plot_land_cover_comparison(input, ground_truth, prediction ).write_image(image_filename)
 
         table.add_data(
             wandb.Image(image_filename),
