@@ -24,7 +24,7 @@ from torchapp.util import call_func
 from fastai.data.block import TransformBlock
 
 from polytorch import CategoricalData, ContinuousData, BinaryData, PolyLoss, CategoricalLossType, BinaryLossType, PolyData
-from polytorch.metrics import PolyMetric, CategoricalAccuracy
+from polytorch.metrics import PolyMetric
 
 from themeda_preproc.source import DataSourceName, is_data_source_continuous
 from themeda_preproc.roi import ROIName
@@ -32,10 +32,11 @@ from themeda_preproc.chiplet_table import load_table
 from themeda_preproc.summary_stats import load_stats
 import torch.nn.functional as F
 
-from .dataloaders import TPlus1Callback, get_chiplets_list, PredictPersistanceCallback, FutureDataLoader
-from .models import ResNet, TemporalProcessorType, ThemedaModelUNet, ThemedaModel, ThemedaModelSimpleConv, PersistenceModel, ProportionsLSTMModel
+from .enums import TemporalProcessorType
+from .dataloaders import TPlus1Callback, FutureDataLoader
+from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel, ThemedaUNet
 from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
-from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy
+from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy, CategoricalAccuracy
 from .plots import wandb_process
 from .loss import ProportionLoss
 from .land_cover import LandCoverData
@@ -123,10 +124,10 @@ def get_block(name:DataSourceName|str, roi:ROIName, base_dir:Path) -> TransformB
     return TransformBlock(type_tfms=type_tfms)
 
 
-def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool) -> PolyData:
+def get_datatype(name:DataSourceName|str, emd_loss:bool, hierarchical_embedding:bool, label_smoothing:float) -> PolyData:
     name = str(name)
     if name == "land_cover":
-        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding)
+        return LandCoverData(emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing)
     elif name == "land_use":
         from themeda_preproc.land_use.labels import get_cmap
 
@@ -189,6 +190,7 @@ class Themeda(ta.TorchApp):
         # predict_persistance:bool=False,
         pad_size:int = 0,
         base_size:int = 160,
+        label_smoothing:float=0.0,
         emd_loss:bool=False,
         hierarchical_embedding:bool=False,
     ) -> DataLoaders:
@@ -209,8 +211,8 @@ class Themeda(ta.TorchApp):
 
         all_types = self.inputs + self.outputs
 
-        self.input_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.inputs]
-        self.output_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding) for name in self.outputs]
+        self.input_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing) for name in self.inputs]
+        self.output_types = [get_datatype(name, emd_loss=emd_loss, hierarchical_embedding=hierarchical_embedding, label_smoothing=label_smoothing) for name in self.outputs]
         # self.output_types = self.input_types # hack
         base_dir = Path(base_dir)
         assert base_dir.exists(), f"Base Dir {base_dir} does not exist"
@@ -263,15 +265,19 @@ class Themeda(ta.TorchApp):
         self,
         persistence:bool = ta.Param(False, help='Whether or not to use a basic persistence model.'),
         embedding_size:int=ta.Param(16, help="The number of embedding dimensions."),
-        encoder_resent:ResNet=ResNet.resnet18.value,
-        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.GRU.value, case_sensitive=False),
-        fastai_unet:bool=False,
-        simple:bool=True,
-        kernel_size:int=1,
-        dropout:float=0.0,   
-        hidden_size:int=0,     # only for simple conv 
-        num_conv_layers:int=1, #add multiple conv layers
-        padding_mode:str="reflect",
+        cnn_kernel:int=15,
+        cnn_size:int=64,
+        cnn_layers:int=1,
+        layers:int=4,
+        growth_factor:float=2.0,
+        padding_mode:str ="reflect",
+        temporal_processor_type:TemporalProcessorType=ta.Param(TemporalProcessorType.LSTM.value, case_sensitive=False),
+        temporal_layers:int=2,
+        temporal_size:int=32,
+        transformer_heads:int=8,
+        transformer_layers:int=4,
+        transformer_positional_encoding:bool=True,
+        unet:bool=False,
     ) -> nn.Module:
         """
         Creates a deep learning model for the Themeda to use.
@@ -280,47 +286,52 @@ class Themeda(ta.TorchApp):
             nn.Module: The created model.
         """
         if persistence:
-            return PersistenceModel(self.input_types)
+            return PersistenceModel(self.input_types, self.output_types)
         
-        if simple:
-            return ThemedaModelSimpleConv(
-                kernel_size=kernel_size,
+        if unet:
+            return ThemedaUNet(
                 input_types=self.input_types,
                 output_types=self.output_types,
                 embedding_size=embedding_size,
-                hidden_size=hidden_size,
+                padding_mode = padding_mode,
+                growth_factor = growth_factor,
+                kernel_size = cnn_kernel,
+                layers = layers,
                 temporal_processor_type=temporal_processor_type,
-                num_conv_layers=num_conv_layers,
-                padding_mode=padding_mode,
+                temporal_layers=temporal_layers,
+                transformer_heads=transformer_heads,
+                transformer_layers=transformer_layers,
+                # transformer_positional_encoding=transformer_positional_encoding,
             )
-        else:
-            ModelClass = ThemedaModelUNet if fastai_unet else ThemedaModel
-
-        return ModelClass(
+        
+        return ThemedaModel(
             input_types=self.input_types,
             output_types=self.output_types,
             embedding_size=embedding_size,
-            encoder_resent=encoder_resent,
+            cnn_kernel=cnn_kernel,
+            cnn_size=cnn_size,
+            cnn_layers=cnn_layers,
+            padding_mode=padding_mode,
             temporal_processor_type=temporal_processor_type,
-            dropout=dropout,
+            temporal_layers=temporal_layers,
+            temporal_size=temporal_size,
+            transformer_heads=transformer_heads,
+            transformer_layers=transformer_layers,
+            transformer_positional_encoding=transformer_positional_encoding,
         )
     
-    def extra_callbacks(
-        self, 
-        predict_persistance:bool=False, # hack
-    ):
+    def extra_callbacks(self, **kwargs):
         callbacks = [TPlus1Callback()]
-        self.predict_persistance = predict_persistance 
-        if self.predict_persistance:
-            callbacks.append(PredictPersistanceCallback())
         return callbacks
 
-    def loss_func(self):
+    def loss_func(self, persistence:bool=False):
+        if persistence:
+            return KLDivergenceProportions(data_index=0, feature_axis=2)
         return PolyLoss(data_types=self.output_types, feature_axis=2)
         
-    def inference_callbacks(self, results:Path=None):
-        assert results is not None, f"Please give a path to output the results."
-        return [WriteResults(results)]        
+    def inference_callbacks(self, probabilities:Path=None, argmax:Path=None):
+        assert (probabilities or argmax), f"Please give a path to output the results as probabilities or argmax."
+        return [WriteResults(probabilities=probabilities, argmax=argmax)]        
 
     def inference_dataloader(
         self, 
@@ -390,8 +401,11 @@ class Themeda(ta.TorchApp):
             cbs=inference_callbacks,
             with_preds=False,
         )
+    
+    def monitor(self):
+        return "valid_loss"
 
-    def metrics(self):
+    def metrics(self, metric_dir: Path = ta.Param(None, help="The location to save data for the metrics."),):
         metrics = []
         feature_axis = 2
 
@@ -401,10 +415,10 @@ class Themeda(ta.TorchApp):
 
             if output == "land_cover":
                 metrics += [
-                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis),
-                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis),
-                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis),
+                    CategoricalAccuracy(name=f"{output}_accuracy", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    KLDivergenceProportions(name=f"{output}_kl", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    HierarchicalCategoricalAccuracy(name=f"{output}_level0_accuracy", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
+                    HierarchicalKLDivergence(name=f"{output}_level0_kl", data_index=data_index, feature_axis=feature_axis, output_dir=metric_dir),
                 ]
             elif output == "land_use":
                 metrics += [
@@ -425,6 +439,7 @@ class Themeda(ta.TorchApp):
         self,
         gpu: bool = ta.Param(True, help="Whether or not to use a GPU for processing if available."),
         persistence:bool = False,
+        metric_dir:Path = None,
         **kwargs,
     ):
 
@@ -436,7 +451,7 @@ class Themeda(ta.TorchApp):
 
         if persistence:
             learner = call_func(self.learner, **kwargs)
-            learner.model = PersistenceModel(self.input_types)
+            learner.model = PersistenceModel(self.input_types, self.output_types)
         else:
             path = call_func(self.pretrained_local_path, **kwargs)
 
@@ -446,6 +461,7 @@ class Themeda(ta.TorchApp):
                 import dill
                 learner = load_learner(path, cpu=not gpu, pickle_module=dill)
 
+        learner.metrics = call_func(self.metrics, metric_dir=metric_dir, **kwargs)
 
         table = Table(title="Validation", box=SIMPLE)
 
