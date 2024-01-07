@@ -372,6 +372,9 @@ class Themeda(ta.TorchApp):
         learner.dl = dataloader
 
         return dataloader
+    
+    def pretrained_location(self) -> str:
+        return f"https://github.com/themeda-devs/themeda/releases/download/v0.1.0/themeda-0.1.pkl"        
 
     def __call__(
         self, 
