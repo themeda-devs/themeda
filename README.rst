@@ -73,6 +73,16 @@ If you use Themeda, please cite the preprint:
 
     Turnbull, Robert and Mannion, Damien and Wells, Jessie and Manandhar Shrestha, Kabir and Balogh, Attila and Runting, Rebecca, Themeda: Predicting land cover change using deep learning (January 1, 2024). Available at SSRN: https://ssrn.com/abstract=4681094
 
+.. code-block:: bibtex
+
+    @article {themeda2024,
+        author = {Turnbull, Robert and Mannion, Damien and Wells, Jessie and Manandhar Shrestha, Kabir and Balogh, Attila and Runting, Rebecca},
+        title = {{Themeda: Predicting land cover change using deep learning}},
+        year = {2024},
+        doi = {10.2139/ssrn.4681094},
+        journal = {SSRN}
+    }
+
 .. end-credits
 
 
