@@ -603,7 +603,6 @@ class ThemedaConvLSTM(nn.Module):
         img_height:int = None,
         memory_kernel_size:int = 5,
         peephole:bool = True,
-        baseline:str = None,
         layer_norm_flag:bool = False,
     ):
         """ 
@@ -613,7 +612,7 @@ class ThemedaConvLSTM(nn.Module):
             
         self.output_types = output_types
         out_channels = total_size(output_types)
-        embedding_size = out_channels + 1
+        embedding_size = out_channels
         self.embedding = PolyEmbedding(
             input_types=input_types,
             embedding_size=embedding_size,
@@ -632,7 +631,6 @@ class ThemedaConvLSTM(nn.Module):
             img_height=img_height,
             img_width=img_width,
             peephole=peephole,
-            baseline=baseline,
             layer_norm_flag=layer_norm_flag,
         )
 

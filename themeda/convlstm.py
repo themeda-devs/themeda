@@ -22,36 +22,6 @@ In particular:
 import torch.nn as nn
 import torch
 
-def mean_cube(cube, mask_channel=False):
-    '''
-    Computes the mean of the cube excluding the time axis. 
-    If mask_channel is True, it excludes the masked channels.
-    '''
-    if not mask_channel:
-        return torch.mean(cube, dim=-1)
-    else:
-        channels = cube.shape[1]
-        mask = torch.repeat_interleave(1 - cube[:, -1:, :, :, :], channels - 1, axis=1)
-        masked_cube = mask * cube[:, :-1, :, :, :] 
-        avg_cube = torch.sum(masked_cube, dim=-1) / torch.sum(mask, dim=-1)
-        return torch.nan_to_num(avg_cube, nan=0)
-
-def last_frame(cube, mask_channel=4):
-    T = cube.shape[-1]
-    mask = 1 - cube[:, mask_channel:mask_channel + 1, :, :, T - 1]
-    missing = cube[:, mask_channel:mask_channel + 1, :, :, T - 1]
-    new_cube = cube[:, :-1, :, :, T - 1] * mask
-    t = T - 1
-    while (torch.min(mask) == 0 and t >= 0):
-        mask = missing * (1 - cube[:, mask_channel:mask_channel + 1, :, :, t])
-        new_cube += cube[:, :-1, :, :, t] * mask
-        missing = missing * (1 - mask)
-        t -= 1
-    return new_cube
-
-def zeros(cube, mask_channel=4):
-    return cube[:, :-1, :, :, 0] * 0
-
 class Conv_LSTM_Cell(nn.Module):
     def __init__(self, input_dim, h_channels, big_mem, kernel_size, memory_kernel_size, dilation_rate, layer_norm_flag, img_width, img_height, peephole):
         super(Conv_LSTM_Cell, self).__init__()
@@ -109,7 +79,7 @@ class Conv_LSTM_Cell(nn.Module):
 
 class Conv_LSTM(nn.Module):
     def __init__(self, input_dim, output_dim, hidden_dims, big_mem, kernel_size, memory_kernel_size, dilation_rate,
-                 img_width, img_height, layer_norm_flag=True, baseline="last_frame", num_layers=1, peephole=True):
+                 img_width, img_height, layer_norm_flag=True, num_layers=1, peephole=True):
         super(Conv_LSTM, self).__init__()
         self._check_kernel_size_consistency(kernel_size)
 
@@ -124,7 +94,6 @@ class Conv_LSTM(nn.Module):
         self.layer_norm_flag = layer_norm_flag
         self.img_width = img_width
         self.img_height = img_height
-        self.baseline = baseline
         self.peephole = peephole
 
         cell_list = []
@@ -147,27 +116,29 @@ class Conv_LSTM(nn.Module):
 
     def forward(self, input_tensor):
         b, _, width, height, T = input_tensor.size()
-        hs = [torch.zeros((b, self.h_channels[i], height, width, T + 1), device=self._get_device()) for i in range(self.num_layers)]
-        cs = [torch.zeros((b, self.h_channels[i] if self.big_mem else 1, height, width, T + 1), device=self._get_device()) for i in range(self.num_layers)]
+        hs = [torch.zeros((b, self.h_channels[i], height, width, T + 1), device=self._get_device(), dtype=input_tensor.dtype) for i in range(self.num_layers)]
+        cs = [torch.zeros((b, self.h_channels[i] if self.big_mem else 1, height, width, T + 1), device=self._get_device(), dtype=input_tensor.dtype) for i in range(self.num_layers)]
 
-        preds = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device())
-        pred_deltas = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device())
-        baselines = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device())
+        pred_deltas = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device(), dtype=input_tensor.dtype)
+        baselines = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device(), dtype=input_tensor.dtype)
+
+        # Set the baselines for the subsequent timesteps using the previous timestep values
+        baselines[..., 1:] = input_tensor[..., :T-1].clone()
 
         for t in range(T):
-            baselines[..., t] = eval(self.baseline + "(input_tensor[..., :t+1], 4)")
             input_t = input_tensor[..., t]
-            h0, c0 = self.cell_list[0](input_tensor=input_t, cur_state=[hs[0][..., t].clone(), cs[0][..., t].clone()])
-            hs[0][..., t + 1] = h0
-            cs[0][..., t + 1] = c0
+            h0, c0 = self.cell_list[0](input_tensor=input_t, cur_state=[hs[0][..., t].detach().clone(), cs[0][..., t].detach().clone()])
+            hs[0][..., t + 1] = h0.clone()
+            cs[0][..., t + 1] = c0.clone()
 
             for i in range(1, self.num_layers):
-                h, c = self.cell_list[i](input_tensor=hs[i - 1][..., t + 1], cur_state=[hs[i][..., t].clone(), cs[i][..., t].clone()])
-                hs[i][..., t + 1] = h
-                cs[i][..., t + 1] = c
+                h, c = self.cell_list[i](input_tensor=hs[i - 1][..., t + 1], cur_state=[hs[i][..., t].detach().clone(), cs[i][..., t].detach().clone()])
+                hs[i][..., t + 1] = h.clone()
+                cs[i][..., t + 1] = c.clone()
 
             pred_deltas[..., t] = hs[-1][..., t + 1]
-            preds[..., t] = pred_deltas[..., t] + baselines[..., t]
+        
+        preds = pred_deltas + input_tensor
 
         return preds, pred_deltas, baselines
 

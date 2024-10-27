@@ -515,7 +515,6 @@ class ThemedaConvLSTMApp(Themeda):
         img_height:int = 160,
         memory_kernel:int = 5,
         peephole:bool = True,
-        baseline:str = "last_frame",
         layer_norm_flag:bool = False,
     ):
         return ThemedaConvLSTM(
@@ -529,7 +528,6 @@ class ThemedaConvLSTMApp(Themeda):
             img_height=img_height,
             memory_kernel_size=memory_kernel,
             peephole=peephole,
-            baseline=baseline,
             layer_norm_flag=layer_norm_flag,
         )
         
