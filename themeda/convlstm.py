@@ -33,8 +33,8 @@ def mean_cube(cube, mask_channel=False):
         channels = cube.shape[1]
         mask = torch.repeat_interleave(1 - cube[:, -1:, :, :, :], channels - 1, axis=1)
         masked_cube = mask * cube[:, :-1, :, :, :] 
-        avg_cube = torch.sum(masked_cube, dim=-1) / torch.sum(mask, dim = -1)
-        return torch.nan_to_num(avg_cube, nan = 0)
+        avg_cube = torch.sum(masked_cube, dim=-1) / torch.sum(mask, dim=-1)
+        return torch.nan_to_num(avg_cube, nan=0)
 
 def last_frame(cube, mask_channel=4):
     T = cube.shape[-1]
@@ -98,10 +98,7 @@ class Conv_LSTM_Cell(nn.Module):
 
         g = torch.tanh(cc_g)
         c_next = f * c_cur + i * g
-        if self.h_channels == self.c_channels:
-            h_next = o * torch.tanh(c_next)
-        elif self.c_channels == 1:
-            h_next = o * torch.tanh(c_next).repeat([1, self.h_channels, 1, 1])
+        h_next = o * torch.tanh(c_next)
 
         return h_next, c_next
 
@@ -160,10 +157,14 @@ class Conv_LSTM(nn.Module):
         for t in range(T):
             baselines[..., t] = eval(self.baseline + "(input_tensor[..., :t+1], 4)")
             input_t = input_tensor[..., t]
-            hs[0][..., t + 1], cs[0][..., t + 1] = self.cell_list[0](input_tensor=input_t, cur_state=[hs[0][..., t], cs[0][..., t]])
-            
+            h0, c0 = self.cell_list[0](input_tensor=input_t, cur_state=[hs[0][..., t].clone(), cs[0][..., t].clone()])
+            hs[0][..., t + 1] = h0
+            cs[0][..., t + 1] = c0
+
             for i in range(1, self.num_layers):
-                hs[i][..., t + 1], cs[i][..., t + 1] = self.cell_list[i](input_tensor=hs[i - 1][..., t + 1], cur_state=[hs[i][..., t], cs[i][..., t]])
+                h, c = self.cell_list[i](input_tensor=hs[i - 1][..., t + 1], cur_state=[hs[i][..., t].clone(), cs[i][..., t].clone()])
+                hs[i][..., t + 1] = h
+                cs[i][..., t + 1] = c
 
             pred_deltas[..., t] = hs[-1][..., t + 1]
             preds[..., t] = pred_deltas[..., t] + baselines[..., t]

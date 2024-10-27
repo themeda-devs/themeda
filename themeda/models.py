@@ -644,7 +644,6 @@ class ThemedaConvLSTM(nn.Module):
         preds, pred_deltas, baselines = self.convlstm(embedded)
 
         preds = preds.permute(0,4,1,2,3)
-        breakpoint()
 
         return split_tensor(preds, self.output_types, feature_axis=2)
 
