@@ -595,7 +595,6 @@ class ThemedaConvLSTM(nn.Module):
         self,
         input_types:List[PolyData],
         output_types:List[PolyData] = None,
-        embedding_size:int=16,        
         kernel_size:int = 5,
         layers:int = 3,
         hidden_dims:int = 20,

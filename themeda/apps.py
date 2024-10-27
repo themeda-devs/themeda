@@ -507,7 +507,6 @@ class ThemedaProportionsApp(Themeda):
 class ThemedaConvLSTMApp(Themeda):
     def model(
         self,
-        embedding_size:int=16,        
         kernel:int = 5,
         layers:int = 3,
         hidden_size:int = 20,
@@ -522,7 +521,6 @@ class ThemedaConvLSTMApp(Themeda):
         return ThemedaConvLSTM(
             input_types=self.input_types,
             output_types=self.output_types,            
-            embedding_size=embedding_size,
             kernel_size=kernel,
             layers=layers,
             hidden_dims=hidden_size,
