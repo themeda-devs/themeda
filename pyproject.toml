@@ -63,6 +63,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
 themeda = "themeda.apps:Themeda.main"
+themeda-convlstm = "themeda.apps:ThemedaConvLSTMApp.main"
 themeda-proportion = "themeda.apps:ThemedaProportionsApp.main"
 
 [tool.mypy]

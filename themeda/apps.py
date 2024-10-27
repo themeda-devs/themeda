@@ -34,8 +34,8 @@ import torch.nn.functional as F
 
 from .enums import TemporalProcessorType
 from .dataloaders import TPlus1Callback, FutureDataLoader
-from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel, ThemedaUNet
-from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary
+from .models import ThemedaModel, PersistenceModel, ProportionsLSTMModel, ThemedaUNet, ThemedaConvLSTM
+from .transforms import ChipletBlock, StaticChipletBlock, Normalize, make_binary, ChipletTransform
 from .metrics import KLDivergenceProportions, HierarchicalKLDivergence, HierarchicalCategoricalAccuracy, CategoricalAccuracy
 from .plots import wandb_process
 from .loss import ProportionLoss
@@ -250,6 +250,7 @@ class Themeda(ta.TorchApp):
             getters=getters,
             splitter=splitter,
             n_inp=len(self.input_types),
+            # item_tfms=[ChipletTransform(max_years=13)]
         )
 
         dataloaders = DataLoaders.from_dblock(
@@ -501,4 +502,38 @@ class ThemedaProportionsApp(Themeda):
         
     def loss_func(self):
         return ProportionLoss(output_types=self.output_types)
+        
+
+class ThemedaConvLSTMApp(Themeda):
+    def model(
+        self,
+        embedding_size:int=16,        
+        kernel:int = 5,
+        layers:int = 3,
+        hidden_size:int = 20,
+        dilation:int = 1,
+        img_width:int = 160,
+        img_height:int = 160,
+        memory_kernel:int = 5,
+        peephole:bool = True,
+        baseline:str = "last_frame",
+        layer_norm_flag:bool = False,
+    ):
+        return ThemedaConvLSTM(
+            input_types=self.input_types,
+            output_types=self.output_types,            
+            embedding_size=embedding_size,
+            kernel_size=kernel,
+            layers=layers,
+            hidden_dims=hidden_size,
+            dilation_rate=dilation,
+            img_width=img_width,
+            img_height=img_height,
+            memory_kernel_size=memory_kernel,
+            peephole=peephole,
+            baseline=baseline,
+            layer_norm_flag=layer_norm_flag,
+        )
+        
+
         

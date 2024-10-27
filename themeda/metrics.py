@@ -98,6 +98,7 @@ class CategoricalAccuracy(WritableMetric):
         return result.mean()
 
 
+
 @define
 class HierarchicalCategoricalAccuracy(WritableMetric):
     mapping_tensor: Tensor = field(init=False)
@@ -149,4 +150,31 @@ class HierarchicalKLDivergence(HierarchicalCategoricalAccuracy):
         )
         self.write_result(result)
         return result.mean()
+
+
+
+@define
+class CategoricalAccuracyFinalYear(CategoricalAccuracy):
+    def calc(self, predictions, targets):
+        return super().calc(predictions[:,-1:], targets[:,-1:])
+
+
+@define
+class KLDivergenceProportionsFinalYear(KLDivergenceProportions):
+    def calc(self, predictions, targets):
+        return super().calc(predictions[:,-1:], targets[:,-1:])
+
+
+@define
+class HierarchicalCategoricalAccuracyFinalYear(HierarchicalCategoricalAccuracy):
+    def calc(self, predictions, targets):
+        return super().calc(predictions[:,-1:], targets[:,-1:])
+
+
+
+@define
+class HierarchicalKLDivergenceFinalYear(HierarchicalKLDivergence):
+    def calc(self, predictions, targets):
+        return super().calc(predictions[:,-1:], targets[:,-1:])
+
 
