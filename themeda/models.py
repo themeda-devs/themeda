@@ -13,6 +13,7 @@ from polytorch import PolyEmbedding, PolyData, split_tensor, total_size, Categor
 
 from torchvision.models import resnet18
 from fastai.vision.learner import create_unet_model
+from .convlstm import Conv_LSTM
 
 from .enums import TemporalProcessorType, DecoderType, ResNet
 
@@ -587,3 +588,71 @@ class ThemedaUNet(nn.Module):
         prediction = prediction.contiguous().view( (batch_size, timesteps, -1) + x.shape[2:] )  
 
         return split_tensor(prediction, self.output_types, feature_axis=2)
+
+
+class ThemedaConvLSTM(nn.Module):
+    def __init__(
+        self,
+        input_types:List[PolyData],
+        output_types:List[PolyData] = None,
+        kernel_size:int = 5,
+        embedding_size:int = 20,
+        layers:int = 3,
+        hidden_dims:int = 20,
+        dilation_rate:int = 1,
+        img_width:int = None,
+        img_height:int = None,
+        memory_kernel_size:int = 5,
+        peephole:bool = True,
+        layer_norm_flag:bool = False,
+    ):
+        """ 
+        Defaults from https://github.com/rudolfwilliam/satellite_image_forecasting/blob/master/config/ConvLSTM.json
+        """
+        super().__init__()
+            
+        self.output_types = output_types
+        out_channels = total_size(output_types)
+        
+        self.embedding = PolyEmbedding(
+            input_types=input_types,
+            embedding_size=embedding_size,
+            feature_axis=2,
+        )
+
+        self.convlstm = Conv_LSTM(
+            input_dim=embedding_size,
+            big_mem=True,
+            output_dim=embedding_size,
+            hidden_dims=hidden_dims,
+            kernel_size=kernel_size,
+            memory_kernel_size=memory_kernel_size,
+            num_layers=layers,
+            dilation_rate=dilation_rate,
+            img_height=img_height,
+            img_width=img_width,
+            peephole=peephole,
+            layer_norm_flag=layer_norm_flag,
+        )
+        self.prediction_layer = Conv(
+            in_channels=embedding_size, 
+            out_channels=out_channels, 
+            kernel_size=1,
+            stride=1,
+            dim=2,
+        )
+
+    def forward(self, *inputs):
+        embedded = self.embedding(*inputs)
+        embedded = embedded.permute(0,2,3,4,1)
+        # (b, c, w, h, t)
+        result = self.convlstm(embedded)
+
+        result = result.permute(0,4,1,2,3)
+
+        result, _, batch_size, timesteps = time_distributed_combine(result)
+        result = self.prediction_layer(result)
+        result = result.contiguous().view( (batch_size, timesteps, -1) + result.shape[2:] )  
+
+        return split_tensor(result, self.output_types, feature_axis=2)
+

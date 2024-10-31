@@ -188,3 +188,17 @@ class Normalize(DisplayedTransform):
 def make_binary(x):
     return x > 0
 
+
+@dataclass
+class ChipletTransform(DisplayedTransform):
+    max_years:int
+
+    def __call__(self, data, split_idx:int):  
+        current_years = len(data[0])
+        if split_idx == 1 or current_years <= self.max_years:
+            return data
+
+        start_year = np.random.randint(0, current_years-self.max_years)
+        end_year = start_year+self.max_years
+
+        return tuple(item[start_year:end_year] for item in data)
