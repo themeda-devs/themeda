@@ -120,10 +120,6 @@ class Conv_LSTM(nn.Module):
         cs = [torch.zeros((b, self.h_channels[i] if self.big_mem else 1, height, width, T + 1), device=self._get_device(), dtype=input_tensor.dtype) for i in range(self.num_layers)]
 
         pred_deltas = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device(), dtype=input_tensor.dtype)
-        baselines = torch.zeros((b, self.h_channels[-1], height, width, T), device=self._get_device(), dtype=input_tensor.dtype)
-
-        # Set the baselines for the subsequent timesteps using the previous timestep values
-        baselines[..., 1:] = input_tensor[..., :T-1].clone()
 
         for t in range(T):
             input_t = input_tensor[..., t]
@@ -140,7 +136,7 @@ class Conv_LSTM(nn.Module):
         
         preds = pred_deltas + input_tensor
 
-        return preds, pred_deltas, baselines
+        return preds
 
     def _get_device(self):
         return self.cell_list[0].conv_cc.weight.device

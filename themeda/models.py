@@ -596,6 +596,7 @@ class ThemedaConvLSTM(nn.Module):
         input_types:List[PolyData],
         output_types:List[PolyData] = None,
         kernel_size:int = 5,
+        embedding_size:int = 20,
         layers:int = 3,
         hidden_dims:int = 20,
         dilation_rate:int = 1,
@@ -612,7 +613,7 @@ class ThemedaConvLSTM(nn.Module):
             
         self.output_types = output_types
         out_channels = total_size(output_types)
-        embedding_size = out_channels
+        
         self.embedding = PolyEmbedding(
             input_types=input_types,
             embedding_size=embedding_size,
@@ -622,7 +623,7 @@ class ThemedaConvLSTM(nn.Module):
         self.convlstm = Conv_LSTM(
             input_dim=embedding_size,
             big_mem=True,
-            output_dim=out_channels,
+            output_dim=embedding_size,
             hidden_dims=hidden_dims,
             kernel_size=kernel_size,
             memory_kernel_size=memory_kernel_size,
@@ -633,14 +634,25 @@ class ThemedaConvLSTM(nn.Module):
             peephole=peephole,
             layer_norm_flag=layer_norm_flag,
         )
+        self.prediction_layer = Conv(
+            in_channels=embedding_size, 
+            out_channels=out_channels, 
+            kernel_size=1,
+            stride=1,
+            dim=2,
+        )
 
     def forward(self, *inputs):
         embedded = self.embedding(*inputs)
         embedded = embedded.permute(0,2,3,4,1)
         # (b, c, w, h, t)
-        preds, pred_deltas, baselines = self.convlstm(embedded)
+        result = self.convlstm(embedded)
 
-        preds = preds.permute(0,4,1,2,3)
+        result = result.permute(0,4,1,2,3)
 
-        return split_tensor(preds, self.output_types, feature_axis=2)
+        result, _, batch_size, timesteps = time_distributed_combine(result)
+        result = self.prediction_layer(result)
+        result = result.contiguous().view( (batch_size, timesteps, -1) + result.shape[2:] )  
+
+        return split_tensor(result, self.output_types, feature_axis=2)
 
