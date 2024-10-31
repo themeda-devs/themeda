@@ -48,6 +48,12 @@ See the options for training a model with the command:
 
     themeda train --help
 
+To use the ConvLSTM model, use the `themeda-convlstm` command:
+
+.. code-block:: bash
+
+    themeda-convlstm train --help
+
 See the options for making inferences with the command:
 
 .. code-block:: bash
