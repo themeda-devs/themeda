@@ -531,5 +531,6 @@ class ThemedaConvLSTMApp(Themeda):
             layer_norm_flag=layer_norm_flag,
         )
         
-
+    def pretrained_location(self) -> str:
+        return f"https://github.com/themeda-devs/themeda/releases/download/v0.2.0/themeda-convlstm-0.2.pkl"        
         

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "Themeda"
-version = "0.1.0"
+version = "0.2.0"
 description = "A model to forecast changes to ecosystems in Australia."
 authors = ["Rebecca Runting, Attila Balogh, Jessie Wells, Steven Myburgh, Melbourne Data Analytics Platform <robert.turnbull@unimelb.edu.au>"]
 license = "Apache-2.0"
