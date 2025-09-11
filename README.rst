@@ -80,22 +80,23 @@ Credits
 
 If you use Themeda, please cite the paper:
 
-    Robert Turnbull, Damien J. Mannion, Jessie A. Wells, Kabir Manandhar Shrestha, Attila Balogh, Rebecca K. Runting. 'Themeda: Predicting Land Cover Change Using Deep Learning'. *Journal of Remote Sensing* 2025;5:0780. DOI:10.34133/remotesensing.0780
+    Robert Turnbull, Damien J. Mannion, Jessie A. Wells, Kabir Manandhar Shrestha, Attila Balogh, Rebecca K. Runting. 'Themeda: Predicting Land Cover Change Using Deep Learning'. *Journal of Remote Sensing* 2025;5:0780. 
+    DOI:`10.34133/remotesensing.0780 <https://doi.org/10.34133/remotesensing.0780>`_
 
 .. code-block:: bibtex
 
     @article {themeda,
-    author = {Robert Turnbull  and Damien J. Mannion  and Jessie A. Wells  and Kabir Manandhar Shrestha  and Attila Balogh  and Rebecca K. Runting },
-    title = {Themeda: Predicting Land Cover Change Using Deep Learning},
-    journal = {Journal of Remote Sensing},
-    volume = {5},
-    number = {},
-    pages = {0780},
-    year = {2025},
-    doi = {10.34133/remotesensing.0780},
-    URL = {https://spj.science.org/doi/abs/10.34133/remotesensing.0780},
-    eprint = {https://spj.science.org/doi/pdf/10.34133/remotesensing.0780},
-    abstract = {Accurate land cover change prediction is vital for informed land management, and deep learning offers a flexible solution capable of capturing complex ecological dynamics. This paper presents Themeda, a modeling framework to predict land cover one or more years into the future, using artificial neural networks and time series of remotely sensed data from the world’s largest intact savanna, across northern Australia. Themeda incorporates diverse spatiotemporal features, including 33 years of satellite-derived land cover, rainfall, temperature, fire scars, soil properties, and elevation, and generates a probability distribution for the future land cover for each pixel, across possible land cover classes. The model employs a ConvLSTM and a novel Temporal U-Net architecture, extending the U-Net with long short-term memory layers for multi-scale temporal processing. Themeda overcomes limitations of current spatiotemporal models by processing temporal data at multiple spatial scales, capturing local and regional ecological changes effectively. It achieves a 93.4\% pixel-wise validation accuracy for Food and Agriculture Organization Level 3 land cover classes and a Kullback–Leibler divergence of 1.65 × 10−3 for aggregated land cover predictions in 4,000 m × 4,000 m areas, surpassing baseline persistence models. The model performs strongly in predicting unseen test years, demonstrating robust generalizability. These probabilistic outputs and multi-scale temporal processing represent important advances for remote sensing applications, enabling improved ecological forecasting and supporting land use planning across diverse regions.}
+        author = {Robert Turnbull  and Damien J. Mannion  and Jessie A. Wells  and Kabir Manandhar Shrestha  and Attila Balogh  and Rebecca K. Runting },
+        title = {Themeda: Predicting Land Cover Change Using Deep Learning},
+        journal = {Journal of Remote Sensing},
+        volume = {5},
+        number = {},
+        pages = {0780},
+        year = {2025},
+        doi = {10.34133/remotesensing.0780},
+        URL = {https://spj.science.org/doi/abs/10.34133/remotesensing.0780},
+        eprint = {https://spj.science.org/doi/pdf/10.34133/remotesensing.0780},
+        abstract = {Accurate land cover change prediction is vital for informed land management, and deep learning offers a flexible solution capable of capturing complex ecological dynamics. This paper presents Themeda, a modeling framework to predict land cover one or more years into the future, using artificial neural networks and time series of remotely sensed data from the world’s largest intact savanna, across northern Australia. Themeda incorporates diverse spatiotemporal features, including 33 years of satellite-derived land cover, rainfall, temperature, fire scars, soil properties, and elevation, and generates a probability distribution for the future land cover for each pixel, across possible land cover classes. The model employs a ConvLSTM and a novel Temporal U-Net architecture, extending the U-Net with long short-term memory layers for multi-scale temporal processing. Themeda overcomes limitations of current spatiotemporal models by processing temporal data at multiple spatial scales, capturing local and regional ecological changes effectively. It achieves a 93.4\% pixel-wise validation accuracy for Food and Agriculture Organization Level 3 land cover classes and a Kullback–Leibler divergence of 1.65 × 10−3 for aggregated land cover predictions in 4,000 m × 4,000 m areas, surpassing baseline persistence models. The model performs strongly in predicting unseen test years, demonstrating robust generalizability. These probabilistic outputs and multi-scale temporal processing represent important advances for remote sensing applications, enabling improved ecological forecasting and supporting land use planning across diverse regions.}
     }
 
 
