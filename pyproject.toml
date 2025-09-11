@@ -33,7 +33,7 @@ polytorch = {git = "https://github.com/rbturnbull/polytorch.git", branch="hierar
 themeda-preproc = {git = "https://github.com/themeda-devs/themeda-preproc.git", branch="main"}
 
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.group.dev.dependencies]
 pytest = "^6.2.5"
 ipykernel = "^6.6.1"
 coverage = "^5.5"
