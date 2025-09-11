@@ -1,4 +1,3 @@
-# -*- coding: future_typing -*-
 
 import torch
 import numpy as np

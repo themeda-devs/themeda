@@ -1,4 +1,3 @@
-# broken # -*- coding: future_typing -*-
 
 import math
 from typing import List
