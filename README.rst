@@ -18,7 +18,7 @@ Themeda
 .. |coverage badge| image:: https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/rbturnbull/296c2f5ddd0a272d5a058401c404489e/raw/coverage-badge.json
     :target: https://themeda-devs.github.io/themeda/coverage/
 
-.. |torchapp badge| image:: https://img.shields.io/badge/MLOpps-torchapp-B1230A.svg
+.. |torchapp badge| image:: https://img.shields.io/badge/torch-app-B1230A.svg
     :target: https://rbturnbull.github.io/torchapp/
 
 .. |doi badge| image:: https://img.shields.io/badge/DOI-10.34133%2Fremotesensing.0780-blue
