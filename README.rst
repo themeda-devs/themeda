@@ -30,7 +30,7 @@ Themeda
 
 A model to forecast changes to ecosystems in Australia. 
 
-For more information, see the preprint here: https://ssrn.com/abstract=4681094
+For more information, see the paper here: https://spj.science.org/doi/pdf/10.34133/remotesensing.0780
 
 Installation
 ==================================
